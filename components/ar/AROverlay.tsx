@@ -114,9 +114,6 @@ export function AROverlay({ lat, lon, skyWindow, targetBody }: AROverlayProps) {
       const tb = targetBodyRef.current;
       const manualSelectedBodyName = selectedEventRef.current?.body.name ?? null;
       const activeBodyName = tb ?? manualSelectedBodyName ?? autoTargetRef.current;
-      const activeBody = activeBodyName
-        ? CELESTIAL_BODIES.find(body => body.name === activeBodyName) ?? null
-        : null;
       const now = new Date();
       const pxPerDegree = canvas.width / FOV_DEGREES;
       let bestCenteredBody: { name: string; distance: number } | null = null;
@@ -200,13 +197,18 @@ export function AROverlay({ lat, lon, skyWindow, targetBody }: AROverlayProps) {
         setAutoTargetName(prev => (prev === nextAutoTarget ? prev : nextAutoTarget));
       }
 
-      if (activeBody) {
-        const trajectoryMinutes = activeBody.name === 'Moon' ? SLOW_BODY_TRAJECTORY_MINUTES : TRAJECTORY_MINUTES;
+      const centeredTrajectoryBodyName = bestCenteredBody?.name ?? null;
+      const centeredTrajectoryBody = centeredTrajectoryBodyName
+        ? CELESTIAL_BODIES.find(body => body.name === centeredTrajectoryBodyName) ?? null
+        : null;
+
+      if (centeredTrajectoryBody) {
+        const trajectoryMinutes = centeredTrajectoryBody.name === 'Moon' ? SLOW_BODY_TRAJECTORY_MINUTES : TRAJECTORY_MINUTES;
         const trajectoryPoints: Array<{ x: number; y: number; minutesAhead: number }> = [];
 
         for (let minutesAhead = 0; minutesAhead <= trajectoryMinutes; minutesAhead += TRAJECTORY_STEP_MINUTES) {
           const sampleTime = new Date(now.getTime() + minutesAhead * 60000);
-          const sampleAltAz = getAltAz(activeBody.name, lat, lon, sampleTime);
+          const sampleAltAz = getAltAz(centeredTrajectoryBody.name, lat, lon, sampleTime);
 
           let sampleAzDiff = sampleAltAz.azimuth - deviceHeading;
           if (sampleAzDiff > 180) sampleAzDiff -= 360;
