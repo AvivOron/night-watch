@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useDeviceOrientation } from '@/hooks/useDeviceOrientation';
 import { saveSkyWindow, logCalibration } from '@/lib/storage/calibration';
 import type { SkyWindow } from '@/types/astronomy';
@@ -8,6 +8,7 @@ import { IntroStep } from './IntroStep';
 import { CompassStep } from './CompassStep';
 import { TiltStep } from './TiltStep';
 import { ConfirmStep } from './ConfirmStep';
+import { DesktopManualStep } from './DesktopManualStep';
 import type { CalibrationState } from '@/types/calibration';
 
 interface CalibrationWizardProps {
@@ -62,7 +63,21 @@ export function CalibrationWizard({ lat, lon, onComplete }: CalibrationWizardPro
   const [state, setState] = useState<CalibrationState>(INITIAL_STATE);
   const [viewName, setViewName] = useState('My Window');
   const [notes, setNotes] = useState('');
+  const [isDesktop, setIsDesktop] = useState(false);
+  const [manualCenterAzimuth, setManualCenterAzimuth] = useState(90);
+  const [manualHorizontalSpread, setManualHorizontalSpread] = useState(90);
+  const [manualAltitudeMin, setManualAltitudeMin] = useState(0);
+  const [manualAltitudeMax, setManualAltitudeMax] = useState(35);
   const orientation = useDeviceOrientation();
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mediaQuery = window.matchMedia('(pointer: fine)');
+    const update = () => setIsDesktop(mediaQuery.matches);
+    update();
+    mediaQuery.addEventListener('change', update);
+    return () => mediaQuery.removeEventListener('change', update);
+  }, []);
 
   const goToStep = useCallback(
     (step: CalibrationState['step']) => setState(s => ({ ...s, step })),
@@ -89,6 +104,23 @@ export function CalibrationWizard({ lat, lon, onComplete }: CalibrationWizardPro
       step: 'confirm',
     }));
   }, []);
+
+  const handleManualDone = useCallback(() => {
+    const halfSpread = manualHorizontalSpread / 2;
+    const azimuthMin = (manualCenterAzimuth - halfSpread + 360) % 360;
+    const azimuthMax = (manualCenterAzimuth + halfSpread) % 360;
+    const crossesNorth = azimuthMin > azimuthMax;
+
+    setState(s => ({
+      ...s,
+      azimuthMin,
+      azimuthMax,
+      altitudeMin: Math.min(manualAltitudeMin, manualAltitudeMax - 1),
+      altitudeMax: Math.max(manualAltitudeMax, manualAltitudeMin + 1),
+      crossesNorth,
+      step: 'confirm',
+    }));
+  }, [manualAltitudeMax, manualAltitudeMin, manualCenterAzimuth, manualHorizontalSpread]);
 
   const handleSave = useCallback(async () => {
     if (
@@ -129,7 +161,12 @@ export function CalibrationWizard({ lat, lon, onComplete }: CalibrationWizardPro
   if (state.step === 'intro') {
     return (
       <IntroStep
+        isDesktop={isDesktop}
         onNext={async () => {
+          if (isDesktop) {
+            goToStep('manual');
+            return;
+          }
           if (!orientation.hasPermission) {
             await orientation.requestPermission();
           }
@@ -171,6 +208,22 @@ export function CalibrationWizard({ lat, lon, onComplete }: CalibrationWizardPro
         onNotesChange={setNotes}
         onSave={handleSave}
         onRedo={handleRedo}
+      />
+    );
+  }
+
+  if (state.step === 'manual') {
+    return (
+      <DesktopManualStep
+        centerAzimuth={manualCenterAzimuth}
+        horizontalSpread={manualHorizontalSpread}
+        altitudeMin={manualAltitudeMin}
+        altitudeMax={manualAltitudeMax}
+        onCenterAzimuthChange={setManualCenterAzimuth}
+        onHorizontalSpreadChange={setManualHorizontalSpread}
+        onAltitudeMinChange={value => setManualAltitudeMin(Math.min(value, manualAltitudeMax - 1))}
+        onAltitudeMaxChange={value => setManualAltitudeMax(Math.max(value, manualAltitudeMin + 1))}
+        onDone={handleManualDone}
       />
     );
   }

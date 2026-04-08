@@ -8,7 +8,7 @@ export function useCelestialEvents(
   lat: number | null,
   lon: number | null,
   skyWindow: SkyWindow | null,
-  cloudCover: number,
+  cloudCover: number | null,
   date: Date
 ) {
   const [summary, setSummary] = useState<NightSummary | null>(null);
@@ -18,7 +18,13 @@ export function useCelestialEvents(
   const dateKey = date.toDateString();
 
   useEffect(() => {
-    if (lat === null || lon === null) return;
+    if (lat === null || lon === null || cloudCover === null) {
+      setSummary(null);
+      setLoading(false);
+      return;
+    }
+
+    const resolvedCloudCover = cloudCover;
 
     let cancelled = false;
 
@@ -26,7 +32,7 @@ export function useCelestialEvents(
       setLoading(true);
       setError(null);
       try {
-        const result = await buildNightSummary(lat!, lon!, skyWindow, cloudCover, date);
+        const result = await buildNightSummary(lat!, lon!, skyWindow, resolvedCloudCover, date);
         if (!cancelled) setSummary(result);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to compute events');

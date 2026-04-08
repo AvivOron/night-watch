@@ -1,14 +1,25 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { StarfieldCanvas } from '@/components/ui/StarfieldCanvas';
 import { CalibrationWizard } from '@/components/calibration/CalibrationWizard';
 import { useGeolocation } from '@/hooks/useGeolocation';
-import { MapPin } from 'lucide-react';
+import { MapPin, Smartphone } from 'lucide-react';
 
 export default function CalibratePage() {
   const router = useRouter();
   const geo = useGeolocation();
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mediaQuery = window.matchMedia('(pointer: fine)');
+    const update = () => setIsDesktop(mediaQuery.matches);
+    update();
+    mediaQuery.addEventListener('change', update);
+    return () => mediaQuery.removeEventListener('change', update);
+  }, []);
 
   function handleComplete() {
     router.push('/tonight');
@@ -72,6 +83,22 @@ export default function CalibratePage() {
     <main className="relative min-h-dvh">
       <StarfieldCanvas />
       <div className="relative z-10">
+        {isDesktop && (
+          <div className="mx-auto max-w-2xl px-6 pt-6">
+            <div className="rounded-2xl border border-white/10 bg-navy-900/70 px-4 py-3 backdrop-blur-md">
+              <div className="flex items-start gap-3">
+                <Smartphone className="mt-0.5 h-5 w-5 shrink-0 text-gold-400" />
+                <div>
+                  <p className="text-sm font-medium text-white">Night Watch is built for mobile</p>
+                  <p className="mt-1 text-sm text-white/60">
+                    The best experience uses phone sensors, camera, and live AR. Desktop calibration is a simplified
+                    fallback so you can still get a useful event list.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         <CalibrationWizard
           lat={geo.lat}
           lon={geo.lon}

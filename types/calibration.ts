@@ -1,4 +1,4 @@
-export type CalibrationStep = 'intro' | 'location' | 'compass' | 'tilt' | 'confirm';
+export type CalibrationStep = 'intro' | 'location' | 'compass' | 'tilt' | 'manual' | 'confirm';
 
 export interface RawReadings {
   alpha: number[]; // compass heading samples

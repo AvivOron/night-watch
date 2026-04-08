@@ -23,11 +23,11 @@ export function ObjectDetails({ event, onClose, source = 'default' }: ObjectDeta
     : null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end">
+    <div className="fixed inset-0 z-50 flex items-end md:items-center md:justify-center md:p-6">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div
-        className={`relative w-full rounded-t-3xl border-t border-white/10 bg-navy-900/95 backdrop-blur-xl p-6 space-y-5 ${
-          isAR ? 'pb-28' : 'pb-10'
+        className={`relative w-full rounded-t-3xl border-t border-white/10 bg-navy-900/95 p-6 space-y-5 backdrop-blur-xl md:max-h-[min(80vh,720px)] md:max-w-2xl md:overflow-y-auto md:rounded-3xl md:border md:shadow-2xl ${
+          isAR ? 'pb-28 md:pb-8' : 'pb-10 md:pb-8'
         }`}
       >
         <div className="flex items-center justify-between">

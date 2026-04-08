@@ -1,7 +1,8 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Camera, Clock, Star } from 'lucide-react';
+import { Camera, Clock, Monitor, Star } from 'lucide-react';
 import type { CelestialEvent } from '@/types/astronomy';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { VisibilityDot } from '@/components/ui/VisibilityDot';
@@ -34,6 +35,16 @@ function formatDuration(mins?: number): string {
 
 export function RecommendationCard({ event, loading }: RecommendationCardProps) {
   const router = useRouter();
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mediaQuery = window.matchMedia('(pointer: fine)');
+    const update = () => setIsDesktop(mediaQuery.matches);
+    update();
+    mediaQuery.addEventListener('change', update);
+    return () => mediaQuery.removeEventListener('change', update);
+  }, []);
 
   if (loading) {
     return (
@@ -108,11 +119,11 @@ export function RecommendationCard({ event, loading }: RecommendationCardProps) 
         </div>
 
         <button
-          onClick={() => router.push(`/sky?body=${body.name}`)}
+          onClick={() => router.push(isDesktop ? `/window-view?body=${body.name}` : `/sky?body=${body.name}`)}
           className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gold-400/20 border border-gold-400/30 text-gold-400 font-medium text-sm active:scale-95 transition-transform"
         >
-          <Camera className="w-4 h-4" />
-          View in AR Mode
+          {isDesktop ? <Monitor className="w-4 h-4" /> : <Camera className="w-4 h-4" />}
+          {isDesktop ? 'View in Window' : 'View in AR Mode'}
         </button>
       </div>
     </GlassCard>
