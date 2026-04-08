@@ -7,15 +7,16 @@ export async function buildNightSummary(
   lat: number,
   lon: number,
   skyWindow: SkyWindow | null,
-  cloudCover: number
+  cloudCover: number,
+  date: Date = new Date()
 ): Promise<NightSummary> {
   const now = new Date();
-  const moonPhase = getMoonPhase(now);
+  const moonPhase = getMoonPhase(date);
   const moonPhaseName = getMoonPhaseName(moonPhase);
-  const { sunset, sunrise } = getSunsetSunrise(lat, lon, now);
+  const { sunset, sunrise } = getSunsetSunrise(lat, lon, date);
 
-  const nightStart = sunset ?? new Date(now.getFullYear(), now.getMonth(), now.getDate(), 20, 0, 0);
-  const nightEnd = sunrise ?? new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 6, 0, 0);
+  const nightStart = sunset ?? new Date(date.getFullYear(), date.getMonth(), date.getDate(), 20, 0, 0);
+  const nightEnd = sunrise ?? new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1, 6, 0, 0);
 
   const events: CelestialEvent[] = [];
 
@@ -55,15 +56,17 @@ export async function buildNightSummary(
   // Sort chronologically
   events.sort((a, b) => a.time.getTime() - b.time.getTime());
 
-  // Find best recommendation: highest scoring event that's in window and in the future
-  const future = events.filter(
-    e => e.time >= now && e.inSkyWindow && e.visibilityScore !== 'not-visible'
+  // Find best recommendation: highest scoring in-window event
+  // For future nights, consider all events; for tonight, prefer future ones
+  const isTonight = nightStart.toDateString() === now.toDateString();
+  const candidates = events.filter(
+    e => e.inSkyWindow && e.visibilityScore !== 'not-visible' && (!isTonight || e.time >= now)
   );
-  future.sort((a, b) => {
+  candidates.sort((a, b) => {
     const order: Record<string, number> = { excellent: 3, good: 2, low: 1, 'not-visible': 0 };
     return (order[b.visibilityScore] ?? 0) - (order[a.visibilityScore] ?? 0);
   });
-  const recommendation = future[0] ?? null;
+  const recommendation = candidates[0] ?? null;
 
   // Overall quality score
   const excellentCount = events.filter(e => e.visibilityScore === 'excellent').length;

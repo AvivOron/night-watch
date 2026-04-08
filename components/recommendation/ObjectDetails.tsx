@@ -1,4 +1,4 @@
-import { X, Lightbulb } from 'lucide-react';
+import { X, Lightbulb, CalendarPlus } from 'lucide-react';
 import type { CelestialEvent } from '@/types/astronomy';
 import { VisibilityDot } from '@/components/ui/VisibilityDot';
 
@@ -58,9 +58,73 @@ export function ObjectDetails({ event, onClose }: ObjectDetailsProps) {
           <Lightbulb className="w-5 h-5 text-gold-400 shrink-0 mt-0.5" />
           <p className="text-white/70 text-sm">{body.funFact}</p>
         </div>
+
+        <div className="flex gap-2">
+          <a
+            href={googleCalendarUrl(event)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-white/8 border border-white/10 text-white/70 text-sm font-medium active:scale-[0.98] transition-transform"
+          >
+            <CalendarPlus className="w-4 h-4" />
+            Google
+          </a>
+          <button
+            onClick={() => downloadICS(event)}
+            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-white/8 border border-white/10 text-white/70 text-sm font-medium active:scale-[0.98] transition-transform"
+          >
+            <CalendarPlus className="w-4 h-4" />
+            Apple / ICS
+          </button>
+        </div>
       </div>
     </div>
   );
+}
+
+function toICSDate(d: Date): string {
+  return d.toISOString().replace(/[-:]/g, '').slice(0, 15) + 'Z';
+}
+
+const EVENT_LABELS: Record<string, string> = { rise: 'Rises', set: 'Sets', transit: 'Peak', moon_phase: 'Phase' };
+
+function googleCalendarUrl(event: CelestialEvent): string {
+  const { body, time, type, altAz } = event;
+  const title = `[NightWatch] ${body.displayName} ${EVENT_LABELS[type] ?? type}`;
+  const end = new Date(time.getTime() + 30 * 60 * 1000);
+  const details = `${body.description}\n\nAltitude: ${Math.round(altAz.altitude)}° | Direction: ${Math.round(altAz.azimuth)}° (${azimuthToCardinal(altAz.azimuth)})\n\n${body.funFact}`;
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: title,
+    dates: `${toICSDate(time)}/${toICSDate(end)}`,
+    details,
+  });
+  return `https://calendar.google.com/calendar/render?${params}`;
+}
+
+function downloadICS(event: CelestialEvent): void {
+  const { body, time, type, altAz } = event;
+  const title = `${body.displayName} ${EVENT_LABELS[type] ?? type}`;
+  const end = new Date(time.getTime() + 30 * 60 * 1000);
+  const description = `${body.description}\\n\\nAltitude: ${Math.round(altAz.altitude)}° | Direction: ${Math.round(altAz.azimuth)}° (${azimuthToCardinal(altAz.azimuth)})\\n\\n${body.funFact}`;
+  const ics = [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Night Watch//EN',
+    'BEGIN:VEVENT',
+    `UID:${time.getTime()}-${body.name}@night-watch`,
+    `DTSTAMP:${toICSDate(new Date())}`,
+    `DTSTART:${toICSDate(time)}`,
+    `DTEND:${toICSDate(end)}`,
+    `SUMMARY:${title}`,
+    `DESCRIPTION:${description}`,
+    'END:VEVENT', 'END:VCALENDAR',
+  ].join('\r\n');
+  const blob = new Blob([ics], { type: 'text/calendar' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${body.name}-${type}.ics`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 function azimuthToCardinal(az: number): string {

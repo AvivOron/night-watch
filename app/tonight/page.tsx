@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Settings, Camera, Telescope } from 'lucide-react';
+import { Settings, Camera, Telescope, ChevronLeft, ChevronRight } from 'lucide-react';
 import { StarfieldCanvas } from '@/components/ui/StarfieldCanvas';
 import { WeatherBar } from '@/components/weather/WeatherBar';
 import { RecommendationCard } from '@/components/recommendation/RecommendationCard';
@@ -12,33 +12,56 @@ import { ObjectDetails } from '@/components/recommendation/ObjectDetails';
 import { CardSkeleton } from '@/components/ui/LoadingPulse';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { useSkyWindow } from '@/hooks/useSkyWindow';
+import { useCity } from '@/hooks/useCity';
+import { useBestNights } from '@/hooks/useBestNights';
 import { useWeather } from '@/hooks/useWeather';
 import { useCelestialEvents } from '@/hooks/useCelestialEvents';
 import type { CelestialEvent } from '@/types/astronomy';
 import { getSunsetSunrise } from '@/lib/astronomy/calculations';
 
+function startOfDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
 export default function TonightPage() {
   const router = useRouter();
   const geo = useGeolocation();
+  const city = useCity(geo.lat, geo.lon);
   const { skyWindow } = useSkyWindow();
-  const { weather, loading: weatherLoading } = useWeather(geo.lat, geo.lon);
+  const [selectedDate, setSelectedDate] = useState(() => startOfDay(new Date()));
+  const { weather, loading: weatherLoading } = useWeather(geo.lat, geo.lon, selectedDate);
+
+  const { days: bestNights, loading: bestNightsLoading } = useBestNights(geo.lat, geo.lon, skyWindow);
+
   const { summary, loading: eventsLoading } = useCelestialEvents(
     geo.lat,
     geo.lon,
     skyWindow,
-    weather?.currentCloudCover ?? 0
+    weather?.currentCloudCover ?? 0,
+    selectedDate,
   );
 
   const [filter, setFilter] = useState<FilterType>('all');
   const [selectedEvent, setSelectedEvent] = useState<CelestialEvent | null>(null);
 
-  const now = new Date();
+  const today = startOfDay(new Date());
+  const isToday = selectedDate.getTime() === today.getTime();
+  const dayOffset = Math.round((selectedDate.getTime() - today.getTime()) / 86400000);
+
+  function shiftDay(delta: number) {
+    setSelectedDate(d => {
+      const next = new Date(d);
+      next.setDate(next.getDate() + delta);
+      return next;
+    });
+  }
+
   const times = geo.lat !== null && geo.lon !== null
-    ? getSunsetSunrise(geo.lat, geo.lon, now)
+    ? getSunsetSunrise(geo.lat, geo.lon, selectedDate)
     : { sunset: null, sunrise: null };
 
-  const nightStart = times.sunset ?? new Date(now.getFullYear(), now.getMonth(), now.getDate(), 20, 0, 0);
-  const nightEnd = times.sunrise ?? new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 6, 0, 0);
+  const nightStart = times.sunset ?? new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate(), 20, 0, 0);
+  const nightEnd = times.sunrise ?? new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate() + 1, 6, 0, 0);
 
   const filteredEvents = (summary?.events ?? []).filter(e => {
     if (skyWindow && !e.inSkyWindow) return false;
@@ -57,13 +80,18 @@ export default function TonightPage() {
         {/* Header */}
         <div className="flex items-center justify-between px-4 pt-12 pb-4">
           <div>
-            <h1 className="text-2xl font-bold text-white">Tonight</h1>
+            <h1 className="text-2xl font-bold text-white">
+              {isToday ? 'Tonight' : dayOffset === 1 ? 'Tomorrow' : selectedDate.toLocaleDateString([], { weekday: 'long' })}
+            </h1>
             <p className="text-white/40 text-sm">
-              {now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}
+              {selectedDate.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}
               {moonPhaseLabel && (
                 <span className="ml-2">{moonPhaseEmoji} {moonPhaseLabel}</span>
               )}
             </p>
+            {city && (
+              <p className="text-white/30 text-xs mt-0.5">{city}</p>
+            )}
           </div>
           <button
             onClick={() => router.push('/calibrate')}
@@ -73,8 +101,62 @@ export default function TonightPage() {
           </button>
         </div>
 
+        {/* Date navigation */}
+        <div className="flex items-center justify-center gap-3 px-4 pb-2">
+          <button
+            onClick={() => shiftDay(-1)}
+            disabled={isToday}
+            className="w-8 h-8 rounded-lg bg-white/8 flex items-center justify-center active:scale-95 transition-transform disabled:opacity-20"
+          >
+            <ChevronLeft className="w-4 h-4 text-white" />
+          </button>
+
+          {/* Date picker trigger */}
+          <label className={`relative px-3 py-1 rounded-lg text-xs font-medium cursor-pointer active:scale-95 transition-transform ${isToday ? 'bg-gold-400/20 text-gold-400' : 'bg-white/8 text-white/50'}`}>
+            {isToday ? 'Tonight' : selectedDate.toLocaleDateString([], { month: 'short', day: 'numeric' })}
+            <input
+              type="date"
+              min={today.toISOString().slice(0, 10)}
+              value={selectedDate.toISOString().slice(0, 10)}
+              onChange={e => {
+                if (!e.target.value) return;
+                setSelectedDate(new Date(e.target.value + 'T00:00:00'));
+              }}
+              className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+            />
+          </label>
+
+          <button
+            onClick={() => shiftDay(1)}
+            className="w-8 h-8 rounded-lg bg-white/8 flex items-center justify-center active:scale-95 transition-transform"
+          >
+            <ChevronRight className="w-4 h-4 text-white" />
+          </button>
+        </div>
+
         {/* Weather bar */}
         <WeatherBar weather={weather} loading={weatherLoading} />
+
+        {/* Sky quality */}
+        {summary && (
+          <div className="mx-4 mt-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 flex items-center gap-4">
+            <div className="flex-1">
+              <p className="text-white/50 text-xs uppercase tracking-wide mb-1">Night Quality</p>
+              <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-gold-400/50 to-gold-400 transition-all"
+                  style={{ width: `${summary.qualityScore}%` }}
+                />
+              </div>
+              <p className="text-white/30 text-[11px] mt-1.5 leading-snug">
+                {getNightQualityExplanation(summary)}
+              </p>
+            </div>
+            <p className="text-gold-400 font-bold text-2xl tabular-nums">
+              {Math.round(summary.qualityScore)}
+            </p>
+          </div>
+        )}
 
         {/* No calibration banner */}
         {!skyWindow && (
@@ -135,23 +217,48 @@ export default function TonightPage() {
             )}
           </section>
 
-          {/* Sky quality */}
-          {summary && (
-            <section className="rounded-2xl border border-white/10 bg-white/5 p-4 flex items-center gap-4">
-              <div className="flex-1">
-                <p className="text-white/50 text-xs uppercase tracking-wide mb-1">Night Quality</p>
-                <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-gold-400/50 to-gold-400 transition-all"
-                    style={{ width: `${summary.qualityScore}%` }}
-                  />
-                </div>
+          {/* Best nights */}
+          <section className="space-y-3 pb-2">
+            <h2 className="text-white font-semibold">Best Nights Ahead</h2>
+            {bestNightsLoading ? (
+              <div className="h-24 rounded-2xl bg-white/5 animate-pulse" />
+            ) : (
+              <div className="space-y-2">
+                {[...bestNights]
+                  .sort((a, b) => b.qualityScore - a.qualityScore)
+                  .slice(0, 7)
+                  .map(day => {
+                    const isSelected = day.date.toDateString() === selectedDate.toDateString();
+                    const tod = startOfDay(new Date());
+                    const isToday = day.date.toDateString() === tod.toDateString();
+                    const label = isToday ? 'Tonight' : day.date.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+                    return (
+                      <button
+                        key={day.date.getTime()}
+                        onClick={() => setSelectedDate(day.date)}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all active:scale-[0.98] ${isSelected ? 'bg-gold-400/10 border-gold-400/30' : 'bg-white/5 border-white/8'}`}
+                      >
+                        <div className="flex-1 text-left">
+                          <p className={`text-sm font-medium ${isSelected ? 'text-gold-400' : 'text-white'}`}>{label}</p>
+                          <p className="text-white/30 text-xs mt-0.5">{day.moonPhaseName}{!day.hasWeather ? ' · No forecast' : ''}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {day.excellentCount > 0 && (
+                            <span className="text-[10px] text-gold-400 bg-gold-400/10 px-1.5 py-0.5 rounded-md">{day.excellentCount} excellent</span>
+                          )}
+                          <div className="w-10 text-right">
+                            <span className={`text-sm font-bold tabular-nums ${day.qualityScore >= 60 ? 'text-gold-400' : 'text-white/50'}`}>
+                              {Math.round(day.qualityScore)}
+                            </span>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
               </div>
-              <p className="text-gold-400 font-bold text-2xl tabular-nums">
-                {Math.round(summary.qualityScore)}
-              </p>
-            </section>
-          )}
+            )}
+          </section>
+
         </div>
       </div>
 
@@ -188,6 +295,16 @@ export default function TonightPage() {
       )}
     </main>
   );
+}
+
+function getNightQualityExplanation(summary: import('@/types/astronomy').NightSummary): string {
+  const excellent = summary.events.filter(e => e.visibilityScore === 'excellent').length;
+  const good = summary.events.filter(e => e.visibilityScore === 'good').length;
+  const parts: string[] = [];
+  if (excellent > 0) parts.push(`${excellent} excellent ${excellent === 1 ? 'target' : 'targets'}`);
+  if (good > 0) parts.push(`${good} good ${good === 1 ? 'target' : 'targets'}`);
+  if (parts.length === 0) parts.push('No well-placed targets tonight');
+  return parts.join(', ') + ' in your window';
 }
 
 function getMoonEmoji(phase: number): string {

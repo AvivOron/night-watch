@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
   url.searchParams.set('longitude', lon);
   url.searchParams.set('hourly', 'cloud_cover,visibility,precipitation_probability,weather_code');
   url.searchParams.set('timezone', 'auto');
-  url.searchParams.set('forecast_days', '1');
+  url.searchParams.set('forecast_days', '16');
 
   try {
     const res = await fetch(url.toString(), {

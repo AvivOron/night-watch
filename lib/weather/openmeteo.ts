@@ -24,7 +24,7 @@ function seeingLabel(quality: 'excellent' | 'good' | 'fair' | 'poor'): string {
   }
 }
 
-export async function fetchWeather(lat: number, lon: number): Promise<WeatherData> {
+export async function fetchWeather(lat: number, lon: number, date: Date = new Date()): Promise<WeatherData> {
   const url = `/api/weather?lat=${lat}&lon=${lon}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error('Failed to fetch weather');
@@ -44,24 +44,34 @@ export async function fetchWeather(lat: number, lon: number): Promise<WeatherDat
     weatherCode: weatherCodeArr[i] ?? 0,
   }));
 
-  const now = new Date();
-  const current = hourly.find(h => h.time >= now) ?? hourly[0];
+  // Pick the representative hour for the selected night (around 22:00).
+  // Open-Meteo times are local-timezone strings parsed by new Date(), so match
+  // by comparing year/month/date/hour components directly to avoid UTC offset issues.
+  const y = date.getFullYear(), mo = date.getMonth(), d = date.getDate();
+  const current =
+    hourly.find(h => h.time.getFullYear() === y && h.time.getMonth() === mo && h.time.getDate() === d && h.time.getHours() === 22) ??
+    hourly.find(h => h.time.getFullYear() === y && h.time.getMonth() === mo && h.time.getDate() === d && h.time.getHours() >= 20) ??
+    hourly.find(h => h.time.getFullYear() === y && h.time.getMonth() === mo && h.time.getDate() === d) ??
+    null;
+
+  const noForecast = current === null;
   const currentCloudCover = current?.cloudCoverPercent ?? 0;
   const currentCode = current?.weatherCode ?? 0;
 
-  // Use both cloud cover and weather code for seeing
   const cloudQuality = cloudCoverToSeeing(currentCloudCover);
   const codeQuality = weatherCodeToSeeing(currentCode);
   const qualityOrder = ['excellent', 'good', 'fair', 'poor'];
-  const quality = qualityOrder[
-    Math.max(qualityOrder.indexOf(cloudQuality), qualityOrder.indexOf(codeQuality))
-  ] as 'excellent' | 'good' | 'fair' | 'poor';
+  const quality = noForecast
+    ? 'excellent' // no data — don't penalize
+    : qualityOrder[
+        Math.max(qualityOrder.indexOf(cloudQuality), qualityOrder.indexOf(codeQuality))
+      ] as 'excellent' | 'good' | 'fair' | 'poor';
 
   return {
     fetchedAt: new Date(),
     hourly,
-    currentCloudCover,
+    currentCloudCover: noForecast ? 0 : currentCloudCover,
     seeingQuality: quality,
-    seeingLabel: seeingLabel(quality),
+    seeingLabel: noForecast ? 'No forecast available' : seeingLabel(quality),
   };
 }

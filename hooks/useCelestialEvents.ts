@@ -8,11 +8,14 @@ export function useCelestialEvents(
   lat: number | null,
   lon: number | null,
   skyWindow: SkyWindow | null,
-  cloudCover: number
+  cloudCover: number,
+  date: Date
 ) {
   const [summary, setSummary] = useState<NightSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const dateKey = date.toDateString();
 
   useEffect(() => {
     if (lat === null || lon === null) return;
@@ -23,7 +26,7 @@ export function useCelestialEvents(
       setLoading(true);
       setError(null);
       try {
-        const result = await buildNightSummary(lat!, lon!, skyWindow, cloudCover);
+        const result = await buildNightSummary(lat!, lon!, skyWindow, cloudCover, date);
         if (!cancelled) setSummary(result);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to compute events');
@@ -34,14 +37,17 @@ export function useCelestialEvents(
 
     compute();
 
-    // Refresh every 5 minutes
-    const timer = setInterval(compute, 5 * 60 * 1000);
+    // Only auto-refresh for tonight
+    const isTonight = date.toDateString() === new Date().toDateString();
+    if (!isTonight) return () => { cancelled = true; };
 
+    const timer = setInterval(compute, 5 * 60 * 1000);
     return () => {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [lat, lon, skyWindow, cloudCover]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lat, lon, skyWindow, cloudCover, dateKey]);
 
   return { summary, loading, error };
 }

@@ -3,7 +3,6 @@
 import { useRef, useEffect, useState } from 'react';
 import type { CelestialEvent } from '@/types/astronomy';
 import { EventCard } from './EventCard';
-import { TimeMarker } from './TimeMarker';
 
 interface EventTimelineProps {
   events: CelestialEvent[];
@@ -12,97 +11,138 @@ interface EventTimelineProps {
   onEventTap: (event: CelestialEvent) => void;
 }
 
-const PX_PER_MINUTE = 3;
-const CARD_WIDTH = 76; // px, matches w-[72px] + gap
-const MIN_GAP = 4; // px minimum between cards
-
-// Resolve x positions so no two cards overlap, nudging right as needed
-function resolvePositions(rawXs: number[]): number[] {
-  const positions = [...rawXs];
-  for (let i = 1; i < positions.length; i++) {
-    const minX = positions[i - 1] + CARD_WIDTH + MIN_GAP;
-    if (positions[i] < minX) {
-      positions[i] = minX;
-    }
-  }
-  return positions;
-}
+const CARD_WIDTH = 76;
+const CARD_GAP = 8;
+const CARD_STRIDE = CARD_WIDTH + CARD_GAP;
+const CARD_TOP = 8;
+const CARD_HEIGHT = 110;
+const BAR_Y = CARD_TOP + CARD_HEIGHT + 16;
+const TOTAL_HEIGHT = BAR_Y + 20;
 
 export function EventTimeline({ events, nightStart, nightEnd, onEventTap }: EventTimelineProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [now] = useState(new Date());
 
-  const totalMinutes = (nightEnd.getTime() - nightStart.getTime()) / 60000;
+  const cardXs = events.map((_, i) => i * CARD_STRIDE + 8);
 
-  // Raw x positions from time
-  const rawXs = events.map(e =>
-    Math.max(0, ((e.time.getTime() - nightStart.getTime()) / 60000) * PX_PER_MINUTE - CARD_WIDTH / 2)
+  const trackWidth = Math.max(
+    cardXs.length > 0 ? cardXs[cardXs.length - 1] + CARD_WIDTH + 16 : 0,
+    400
   );
-  const resolvedXs = resolvePositions(rawXs);
 
-  // Track width must accommodate pushed-out cards
-  const maxX = resolvedXs.length > 0 ? resolvedXs[resolvedXs.length - 1] + CARD_WIDTH + 16 : 0;
-  const trackWidth = Math.max(totalMinutes * PX_PER_MINUTE, 400, maxX);
+  function cardCenter(i: number): number {
+    return cardXs[i] + CARD_WIDTH / 2;
+  }
 
-  const nowOffset = Math.max(
-    0,
-    Math.min(
-      ((now.getTime() - nightStart.getTime()) / 60000) * PX_PER_MINUTE,
-      trackWidth
-    )
-  );
+  // Map a real time → x position on the bar (stretched between first and last card center)
+  function timeToX(t: Date): number {
+    if (events.length < 2) return cardCenter(0);
+    const frac = Math.max(0, Math.min(1,
+      (t.getTime() - nightStart.getTime()) / (nightEnd.getTime() - nightStart.getTime())
+    ));
+    return cardCenter(0) + frac * (cardCenter(events.length - 1) - cardCenter(0));
+  }
+
+  const nowX = timeToX(now);
+  const barLeft = cardCenter(0);
+  const barRight = cardCenter(events.length - 1);
 
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    el.scrollLeft = Math.max(0, nowOffset - el.clientWidth / 2);
-  }, [nowOffset]);
+    el.scrollLeft = Math.max(0, nowX - el.clientWidth / 2);
+  }, [nowX]);
 
-  function timeToX(t: Date): number {
-    return ((t.getTime() - nightStart.getTime()) / 60000) * PX_PER_MINUTE;
-  }
-
-  function formatHour(t: Date): string {
-    return t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-  }
-
-  const ticks: Date[] = [];
-  const start = new Date(nightStart);
-  start.setMinutes(0, 0, 0);
-  start.setHours(start.getHours() + 1);
-  while (start < nightEnd) {
-    ticks.push(new Date(start));
-    start.setHours(start.getHours() + 1);
-  }
+  const nowIsOnBar = nowX >= barLeft && nowX <= barRight;
 
   return (
     <div
       ref={scrollRef}
-      className="overflow-x-auto pb-4"
+      className="overflow-x-auto"
       style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
     >
-      <div className="relative" style={{ width: trackWidth, height: 160, minWidth: '100%' }}>
-        {/* Hour ticks */}
-        {ticks.map(tick => {
-          const x = timeToX(tick);
-          return (
-            <div key={tick.getTime()} className="absolute top-0 flex flex-col items-center" style={{ left: x }}>
-              <div className="w-px h-full bg-white/5" />
-              <span className="absolute bottom-0 text-[10px] text-white/30 whitespace-nowrap -translate-x-1/2">
-                {formatHour(tick)}
-              </span>
-            </div>
-          );
-        })}
+      <div className="relative" style={{ width: trackWidth, height: TOTAL_HEIGHT, minWidth: '100%' }}>
 
-        {/* Event cards — positions de-overlapped */}
+        {/* Event cards */}
         {events.map((event, i) => (
-          <div key={event.id} className="absolute top-4" style={{ left: resolvedXs[i] }}>
+          <div
+            key={event.id}
+            className={`absolute ${event.time < now ? 'opacity-35' : ''}`}
+            style={{ left: cardXs[i], top: CARD_TOP }}
+          >
             <EventCard event={event} onTap={() => onEventTap(event)} />
           </div>
         ))}
 
-        <TimeMarker x={nowOffset} />
+        <svg
+          className="absolute inset-0 pointer-events-none"
+          width={trackWidth}
+          height={TOTAL_HEIGHT}
+        >
+          {/* Timeline bar — past portion */}
+          <line
+            x1={barLeft} y1={BAR_Y}
+            x2={Math.min(nowX, barRight)} y2={BAR_Y}
+            stroke="rgba(255,255,255,0.15)"
+            strokeWidth="1"
+          />
+          {/* Timeline bar — future portion */}
+          <line
+            x1={Math.max(nowX, barLeft)} y1={BAR_Y}
+            x2={barRight} y2={BAR_Y}
+            stroke="rgba(255,255,255,0.25)"
+            strokeWidth="1"
+          />
+
+          {/* Dashed drop lines + event dots */}
+          {events.map((event, i) => {
+            const cx = cardCenter(i);
+            const dotX = timeToX(event.time);
+            const isPast = event.time < now;
+            const dotColor = isPast
+              ? 'rgba(255,255,255,0.2)'
+              : event.inSkyWindow
+              ? 'rgb(251,191,36)'
+              : 'rgba(255,255,255,0.45)';
+
+            return (
+              <g key={event.id}>
+                <line
+                  x1={cx} y1={CARD_TOP + CARD_HEIGHT}
+                  x2={cx} y2={BAR_Y}
+                  stroke="rgba(255,255,255,0.1)"
+                  strokeWidth="1"
+                  strokeDasharray="2 3"
+                />
+                <circle cx={dotX} cy={BAR_Y} r={3} fill={dotColor} />
+              </g>
+            );
+          })}
+
+          {/* Now marker */}
+          {nowIsOnBar && (
+            <g>
+              <circle cx={nowX} cy={BAR_Y} r={4} fill="rgb(251,191,36)" />
+              <line
+                x1={nowX} y1={CARD_TOP}
+                x2={nowX} y2={BAR_Y - 4}
+                stroke="rgb(251,191,36)"
+                strokeWidth="1"
+                strokeOpacity="0.4"
+              />
+            </g>
+          )}
+        </svg>
+
+        {/* NOW label */}
+        {nowIsOnBar && (
+          <div
+            className="absolute text-[9px] font-mono text-gold-400 whitespace-nowrap"
+            style={{ left: nowX, top: BAR_Y + 6, transform: 'translateX(-50%)' }}
+          >
+            NOW
+          </div>
+        )}
       </div>
     </div>
   );
