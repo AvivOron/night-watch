@@ -73,6 +73,7 @@ export interface NightSummary {
   events: CelestialEvent[];
   moonPhase: number; // 0-1
   moonPhaseName: string;
+  cloudCover: number;
   recommendation: CelestialEvent | null;
   qualityScore: number; // 0-100
 }

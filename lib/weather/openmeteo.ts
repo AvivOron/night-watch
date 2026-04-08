@@ -24,7 +24,7 @@ function seeingLabel(quality: 'excellent' | 'good' | 'fair' | 'poor'): string {
   }
 }
 
-function pickRepresentativeNightSlot(hourly: HourlySlot[], date: Date): HourlySlot | null {
+export function pickRepresentativeNightSlot(hourly: HourlySlot[], date: Date): HourlySlot | null {
   const y = date.getFullYear();
   const mo = date.getMonth();
   const d = date.getDate();
@@ -72,7 +72,7 @@ function pickRepresentativeNightSlot(hourly: HourlySlot[], date: Date): HourlySl
   );
 }
 
-function pickNearestCurrentSlot(hourly: HourlySlot[], now: Date): HourlySlot | null {
+export function pickNearestCurrentSlot(hourly: HourlySlot[], now: Date): HourlySlot | null {
   let best: HourlySlot | null = null;
   let bestDiff = Number.POSITIVE_INFINITY;
 
@@ -85,6 +85,18 @@ function pickNearestCurrentSlot(hourly: HourlySlot[], now: Date): HourlySlot | n
   }
 
   return best;
+}
+
+export function pickForecastSlotForDate(hourly: HourlySlot[], date: Date, now: Date = new Date()): HourlySlot | null {
+  const isSelectedDateToday = (
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate()
+  );
+
+  return isSelectedDateToday
+    ? pickNearestCurrentSlot(hourly, now)
+    : pickRepresentativeNightSlot(hourly, date);
 }
 
 export async function fetchWeather(lat: number, lon: number, date: Date = new Date()): Promise<WeatherData> {
@@ -109,15 +121,7 @@ export async function fetchWeather(lat: number, lon: number, date: Date = new Da
   }));
 
   const now = new Date();
-  const isSelectedDateToday = (
-    date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth() &&
-    date.getDate() === now.getDate()
-  );
-
-  const current = isSelectedDateToday
-    ? pickNearestCurrentSlot(hourly, now)
-    : pickRepresentativeNightSlot(hourly, date);
+  const current = pickForecastSlotForDate(hourly, date, now);
 
   const noForecast = current === null;
   const currentCloudCover = current?.cloudCoverPercent ?? 0;

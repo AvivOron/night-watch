@@ -50,6 +50,48 @@ function sortRecommendationCandidates(a: CelestialEvent, b: CelestialEvent): num
   return a.time.getTime() - b.time.getTime();
 }
 
+function computeNightQualityScore(
+  events: CelestialEvent[],
+  cloudCover: number,
+  moonPhase: number
+): number {
+  const scoredEvents = events
+    .filter(event => event.inSkyWindow)
+    .map<number>(event => {
+      switch (event.visibilityScore) {
+        case 'excellent':
+          return 1;
+        case 'good':
+          return 0.62;
+        case 'low':
+          return 0.28;
+        default:
+          return 0;
+      }
+    })
+    .filter(score => score > 0)
+    .sort((a, b) => b - a)
+    .slice(0, 8);
+
+  const weightedTotal = scoredEvents.reduce((sum, score, index) => {
+    const weight = Math.max(0.35, 1 - index * 0.12);
+    return sum + score * weight;
+  }, 0);
+
+  const maxWeightedTotal = scoredEvents.reduce((sum, _, index) => {
+    const weight = Math.max(0.35, 1 - index * 0.12);
+    return sum + weight;
+  }, 0);
+
+  const targetScore = maxWeightedTotal > 0
+    ? (weightedTotal / maxWeightedTotal) * 68
+    : 0;
+  const weatherScore = ((100 - cloudCover) / 100) * 22;
+  const moonScore = (1 - moonPhase) * 10;
+
+  return Math.round(Math.max(0, Math.min(100, targetScore + weatherScore + moonScore)));
+}
+
 export async function buildNightSummary(
   lat: number,
   lon: number,
@@ -183,19 +225,14 @@ export async function buildNightSummary(
     recommendation = candidates[0] ?? null;
   }
 
-  // Overall quality score
-  const excellentCount = visibleEvents.filter(e => e.visibilityScore === 'excellent').length;
-  const goodCount = visibleEvents.filter(e => e.visibilityScore === 'good').length;
-  const qualityScore = Math.min(
-    100,
-    excellentCount * 20 + goodCount * 10 + ((100 - cloudCover) / 100) * 30
-  );
+  const qualityScore = computeNightQualityScore(visibleEvents, cloudCover, moonPhase);
 
   return {
     date: now,
     events: visibleEvents,
     moonPhase,
     moonPhaseName,
+    cloudCover,
     recommendation,
     qualityScore,
   };

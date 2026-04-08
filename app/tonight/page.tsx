@@ -367,11 +367,17 @@ export default function TonightPage() {
 function getNightQualityExplanation(summary: import('@/types/astronomy').NightSummary): string {
   const excellent = summary.events.filter(e => e.visibilityScore === 'excellent').length;
   const good = summary.events.filter(e => e.visibilityScore === 'good').length;
-  const parts: string[] = [];
-  if (excellent > 0) parts.push(`${excellent} excellent ${excellent === 1 ? 'target' : 'targets'}`);
-  if (good > 0) parts.push(`${good} good ${good === 1 ? 'target' : 'targets'}`);
-  if (parts.length === 0) parts.push('No well-placed targets tonight');
-  return parts.join(', ') + ' in your window';
+  const targetPart = excellent > 0 || good > 0
+    ? `${excellent} excellent, ${good} good`
+    : 'No strong targets';
+  const weatherPart = `${Math.round(summary.cloudCover)}% cloud`;
+  const moonPart = summary.moonPhase < 0.35
+    ? 'dark moon'
+    : summary.moonPhase < 0.7
+      ? 'moderate moonlight'
+      : 'bright moonlight';
+
+  return `${targetPart} in your window · ${weatherPart} · ${moonPart}`;
 }
 
 function getMoonEmoji(phase: number): string {

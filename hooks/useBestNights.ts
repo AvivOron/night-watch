@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { buildNightSummary } from '@/lib/astronomy/events';
-import { fetchWeather } from '@/lib/weather/openmeteo';
+import { fetchWeather, pickForecastSlotForDate } from '@/lib/weather/openmeteo';
+import { getSunsetSunrise } from '@/lib/astronomy/calculations';
 import type { SkyWindow } from '@/types/astronomy';
 
 export interface DayScore {
@@ -16,6 +17,31 @@ export interface DayScore {
 }
 
 const DAYS = 30;
+
+function startOfDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function getNightAnchorDate(now: Date, lat: number | null, lon: number | null): Date {
+  if (lat === null || lon === null) {
+    const anchor = startOfDay(now);
+    if (now.getHours() < 6) {
+      anchor.setDate(anchor.getDate() - 1);
+    }
+    return anchor;
+  }
+
+  const today = startOfDay(now);
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  const yesterdayNight = getSunsetSunrise(lat, lon, yesterday);
+  if (yesterdayNight.sunrise && now < yesterdayNight.sunrise) {
+    return yesterday;
+  }
+
+  return today;
+}
 
 export function useBestNights(
   lat: number | null,
@@ -41,8 +67,7 @@ export function useBestNights(
 
       if (cancelled) return;
 
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      const today = getNightAnchorDate(new Date(), lat, lon);
 
       const dates = Array.from({ length: DAYS }, (_, i) => {
         const d = new Date(today);
@@ -53,12 +78,7 @@ export function useBestNights(
       // Get cloud cover per day from the already-fetched hourly data
       function cloudCoverForDate(date: Date): { cover: number; hasWeather: boolean } {
         if (!weatherData) return { cover: 0, hasWeather: false };
-        const y = date.getFullYear(), mo = date.getMonth(), d = date.getDate();
-        const slot =
-          weatherData.hourly.find(h => h.time.getFullYear() === y && h.time.getMonth() === mo && h.time.getDate() === d && h.time.getHours() === 22) ??
-          weatherData.hourly.find(h => h.time.getFullYear() === y && h.time.getMonth() === mo && h.time.getDate() === d && h.time.getHours() >= 20) ??
-          weatherData.hourly.find(h => h.time.getFullYear() === y && h.time.getMonth() === mo && h.time.getDate() === d) ??
-          null;
+        const slot = pickForecastSlotForDate(weatherData.hourly, date, new Date());
         return slot ? { cover: slot.cloudCoverPercent, hasWeather: true } : { cover: 0, hasWeather: false };
       }
 
