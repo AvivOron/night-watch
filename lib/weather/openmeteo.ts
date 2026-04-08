@@ -25,7 +25,8 @@ function seeingLabel(quality: 'excellent' | 'good' | 'fair' | 'poor'): string {
 }
 
 export async function fetchWeather(lat: number, lon: number, date: Date = new Date()): Promise<WeatherData> {
-  const url = `/api/weather?lat=${lat}&lon=${lon}`;
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
+  const url = `${basePath}/api/weather?lat=${lat}&lon=${lon}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error('Failed to fetch weather');
   const data = await res.json();
