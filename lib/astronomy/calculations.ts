@@ -60,25 +60,31 @@ export function getRiseSetTimes(
   }
 
   const body = toAstronomyBody(name as EnginePlanet);
-  const startOfDay = new Date(date);
-  startOfDay.setHours(0, 0, 0, 0);
+
+  // Search each event starting from nightStart (sunset) so we find whatever
+  // happens during the actual night window, even if the Moon rose during the day.
+  // Use a 14-hour window (typical max night length) so we don't bleed into next day.
+  const searchStart = new Date(date);
+  searchStart.setHours(17, 0, 0, 0); // start search from 17:00 to catch early-evening events
+
+  const SEARCH_DAYS = 14 / 24; // 14 hours forward
 
   let rise: Date | null = null;
   let transit: Date | null = null;
   let set: Date | null = null;
 
   try {
-    const r = Astronomy.SearchRiseSet(body, observer, 1, startOfDay, 1);
+    const r = Astronomy.SearchRiseSet(body, observer, 1, searchStart, SEARCH_DAYS);
     rise = r ? r.date : null;
-  } catch { /* body may not rise today */ }
+  } catch { /* body may not rise */ }
 
   try {
-    const s = Astronomy.SearchRiseSet(body, observer, -1, startOfDay, 1);
+    const s = Astronomy.SearchRiseSet(body, observer, -1, searchStart, SEARCH_DAYS);
     set = s ? s.date : null;
-  } catch { /* body may not set today */ }
+  } catch { /* body may not set */ }
 
   try {
-    const t = Astronomy.SearchHourAngle(body, observer, 0, Astronomy.MakeTime(startOfDay), 1);
+    const t = Astronomy.SearchHourAngle(body, observer, 0, Astronomy.MakeTime(searchStart), SEARCH_DAYS);
     transit = t ? t.time.date : null;
   } catch { /* transit search failed */ }
 
