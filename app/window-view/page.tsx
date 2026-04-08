@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Clock, Monitor, Telescope } from 'lucide-react';
 import { StarfieldCanvas } from '@/components/ui/StarfieldCanvas';
@@ -132,7 +132,7 @@ function buildWindowPoints(
   return points;
 }
 
-export default function WindowViewPage() {
+function WindowViewContent() {
   const router = useRouter();
   const params = useSearchParams();
   const targetBody = params.get('body');
@@ -393,5 +393,13 @@ export default function WindowViewPage() {
         <ObjectDetails event={selectedEvent} onClose={() => setSelectedEvent(null)} source="ar" />
       )}
     </main>
+  );
+}
+
+export default function WindowViewPage() {
+  return (
+    <Suspense>
+      <WindowViewContent />
+    </Suspense>
   );
 }
