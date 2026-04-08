@@ -13,6 +13,7 @@ interface AROverlayProps {
   lon: number;
   skyWindow: SkyWindow | null;
   targetBody?: string;
+  onDetailsOpen?: () => void;
 }
 
 const FOV_DEGREES = 60;
@@ -52,7 +53,7 @@ function getCardinalDirection(heading: number | null): string {
   return directions[index];
 }
 
-export function AROverlay({ lat, lon, skyWindow, targetBody }: AROverlayProps) {
+export function AROverlay({ lat, lon, skyWindow, targetBody, onDetailsOpen }: AROverlayProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
@@ -347,6 +348,7 @@ export function AROverlay({ lat, lon, skyWindow, targetBody }: AROverlayProps) {
           }
 
           if (best) {
+            onDetailsOpen?.();
             setSelectedEvent(best.event);
           }
         }}
@@ -374,7 +376,7 @@ export function AROverlay({ lat, lon, skyWindow, targetBody }: AROverlayProps) {
         </div>
       )}
       {selectedEvent && (
-        <ObjectDetails event={selectedEvent} onClose={() => setSelectedEvent(null)} />
+        <ObjectDetails event={selectedEvent} onClose={() => setSelectedEvent(null)} source="ar" />
       )}
     </div>
   );
