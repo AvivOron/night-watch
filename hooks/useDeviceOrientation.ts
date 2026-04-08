@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 
 interface OrientationState {
   heading: number | null;  // true compass bearing 0-360 (N=0, E=90)
-  altitude: number | null; // elevation angle 0-90 (0=horizon, 90=zenith)
+  altitude: number | null; // elevation angle -90 to 90 (0=horizon, 90=zenith)
   beta: number | null;     // raw beta, for fallback use
   hasPermission: boolean;
   isAbsolute: boolean;
@@ -58,15 +58,18 @@ function extractHeading(e: DeviceOrientationEvent, isAbsolute: boolean): number 
  * When tilting top of phone upward toward zenith:
  *   beta decreases toward 0 (flat on back) or goes negative (past zenith)
  *
- * altitude = 90 - beta  when phone is held upright portrait (gamma near 0)
- * Clamp to 0-90.
+ * For this device orientation mapping:
+ *   beta ≈ 90  => horizon (0°)
+ *   beta > 90  => phone tilting upward (+ altitude)
+ *   beta < 90  => phone tilting downward (- altitude)
+ * Clamp to -90..90 so AR can keep moving even below the horizon.
  */
 function extractAltitude(beta: number | null): number | null {
   if (beta === null) return null;
   // Observed behavior: phone upright portrait = beta ~90 = horizon (0°)
   // Tilting top away from you (pointing up) increases beta past 90.
-  // altitude = beta - 90, clamped to 0-90.
-  return Math.max(0, Math.min(90, beta - 90));
+  // Tilting top toward the ground decreases beta below 90.
+  return Math.max(-90, Math.min(90, beta - 90));
 }
 
 export function useDeviceOrientation() {
