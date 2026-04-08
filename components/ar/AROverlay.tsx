@@ -16,6 +16,10 @@ interface AROverlayProps {
 }
 
 const FOV_DEGREES = 60;
+const TRAJECTORY_MINUTES = 240;
+const SLOW_BODY_TRAJECTORY_MINUTES = 720;
+const TRAJECTORY_STEP_MINUTES = 15;
+const AUTO_TARGET_RADIUS = 48;
 const BODY_COLORS: Record<string, string> = {
   Moon: '#FFFDE7',
   Venus: '#FFF9C4',
@@ -48,13 +52,18 @@ export function AROverlay({ lat, lon, skyWindow, targetBody }: AROverlayProps) {
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [cameraReady, setCameraReady] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<CelestialEvent | null>(null);
+  const [autoTargetName, setAutoTargetName] = useState<string | null>(null);
   const hitTargetsRef = useRef<Array<{ x: number; y: number; radius: number; event: CelestialEvent }>>([]);
 
   // Keep latest props in refs so the draw loop (runs once) can always read current values
   const skyWindowRef = useRef(skyWindow);
   const targetBodyRef = useRef(targetBody);
+  const selectedEventRef = useRef<CelestialEvent | null>(selectedEvent);
+  const autoTargetRef = useRef<string | null>(autoTargetName);
   useEffect(() => { skyWindowRef.current = skyWindow; }, [skyWindow]);
   useEffect(() => { targetBodyRef.current = targetBody; }, [targetBody]);
+  useEffect(() => { selectedEventRef.current = selectedEvent; }, [selectedEvent]);
+  useEffect(() => { autoTargetRef.current = autoTargetName; }, [autoTargetName]);
 
   // Start camera
   useEffect(() => {
@@ -103,8 +112,14 @@ export function AROverlay({ lat, lon, skyWindow, targetBody }: AROverlayProps) {
       const centerAlt = orientationRawRef.current.altitude ?? 0;
       const sw = skyWindowRef.current;
       const tb = targetBodyRef.current;
+      const manualSelectedBodyName = selectedEventRef.current?.body.name ?? null;
+      const activeBodyName = tb ?? manualSelectedBodyName ?? autoTargetRef.current;
+      const activeBody = activeBodyName
+        ? CELESTIAL_BODIES.find(body => body.name === activeBodyName) ?? null
+        : null;
       const now = new Date();
       const pxPerDegree = canvas.width / FOV_DEGREES;
+      let bestCenteredBody: { name: string; distance: number } | null = null;
 
 
       for (const body of CELESTIAL_BODIES) {
@@ -121,7 +136,7 @@ export function AROverlay({ lat, lon, skyWindow, targetBody }: AROverlayProps) {
         const y = canvas.height / 2 - altDiff * pxPerDegree;
 
         const inWindow = sw ? isInWindow(altAz, sw) : false;
-        const isTarget = body.name === tb;
+        const isTarget = body.name === activeBodyName;
         const color = BODY_COLORS[body.name] ?? '#FFFFFF';
 
         const dotR = body.magnitude < 0 ? 8 : body.magnitude < 3 ? 5 : 3;
@@ -148,6 +163,16 @@ export function AROverlay({ lat, lon, skyWindow, targetBody }: AROverlayProps) {
           event,
         });
 
+        if (!tb && !manualSelectedBodyName) {
+          const distanceFromCenter = Math.hypot(x - canvas.width / 2, y - canvas.height / 2);
+          if (
+            distanceFromCenter <= AUTO_TARGET_RADIUS &&
+            (!bestCenteredBody || distanceFromCenter < bestCenteredBody.distance)
+          ) {
+            bestCenteredBody = { name: body.name, distance: distanceFromCenter };
+          }
+        }
+
         ctx.beginPath();
         ctx.arc(x, y, dotR, 0, Math.PI * 2);
         ctx.fillStyle = color;
@@ -167,6 +192,66 @@ export function AROverlay({ lat, lon, skyWindow, targetBody }: AROverlayProps) {
           ctx.textAlign = 'center';
           ctx.fillText(body.displayName, x, y - dotR - 6);
         }
+
+      }
+
+      if (!tb && !manualSelectedBodyName) {
+        const nextAutoTarget = bestCenteredBody?.name ?? null;
+        setAutoTargetName(prev => (prev === nextAutoTarget ? prev : nextAutoTarget));
+      }
+
+      if (activeBody) {
+        const trajectoryMinutes = activeBody.name === 'Moon' ? SLOW_BODY_TRAJECTORY_MINUTES : TRAJECTORY_MINUTES;
+        const trajectoryPoints: Array<{ x: number; y: number; minutesAhead: number }> = [];
+
+        for (let minutesAhead = 0; minutesAhead <= trajectoryMinutes; minutesAhead += TRAJECTORY_STEP_MINUTES) {
+          const sampleTime = new Date(now.getTime() + minutesAhead * 60000);
+          const sampleAltAz = getAltAz(activeBody.name, lat, lon, sampleTime);
+
+          let sampleAzDiff = sampleAltAz.azimuth - deviceHeading;
+          if (sampleAzDiff > 180) sampleAzDiff -= 360;
+          if (sampleAzDiff < -180) sampleAzDiff += 360;
+          const sampleAltDiff = sampleAltAz.altitude - centerAlt;
+
+          if (
+            Math.abs(sampleAzDiff) > FOV_DEGREES / 2 + 10 ||
+            Math.abs(sampleAltDiff) > FOV_DEGREES / 2 + 10
+          ) {
+            continue;
+          }
+
+          trajectoryPoints.push({
+            x: canvas.width / 2 + sampleAzDiff * pxPerDegree,
+            y: canvas.height / 2 - sampleAltDiff * pxPerDegree,
+            minutesAhead,
+          });
+        }
+
+        if (trajectoryPoints.length >= 2) {
+          ctx.beginPath();
+          ctx.moveTo(trajectoryPoints[0].x, trajectoryPoints[0].y);
+          trajectoryPoints.slice(1).forEach(point => ctx.lineTo(point.x, point.y));
+          ctx.strokeStyle = 'rgba(244,200,66,0.95)';
+          ctx.lineWidth = 3;
+          ctx.setLineDash([6, 6]);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+
+        trajectoryPoints.slice(1).forEach((point, index) => {
+          const markerRadius = index === trajectoryPoints.length - 2 ? 4 : 3;
+          ctx.beginPath();
+          ctx.arc(point.x, point.y, markerRadius, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(244,200,66,1)';
+          ctx.fill();
+
+          if (point.minutesAhead > 0 && point.minutesAhead % 60 === 0) {
+            ctx.font = '11px system-ui';
+            ctx.fillStyle = 'rgba(244,200,66,0.95)';
+            ctx.textAlign = 'center';
+            ctx.fillText(`+${point.minutesAhead / 60}h`, point.x, point.y - 10);
+          }
+        });
       }
 
       // Sky window boundary
