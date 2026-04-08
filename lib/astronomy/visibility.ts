@@ -56,6 +56,41 @@ export function minutesInWindowFromNow(
   return minutes;
 }
 
+export function findWindowVisibility(
+  name: BodyName,
+  lat: number,
+  lon: number,
+  window: SkyWindow,
+  startDate: Date,
+  endDate: Date
+): { entryTime: Date; durationMinutes: number } | null {
+  const STEP_MINUTES = 5;
+  const stepMs = STEP_MINUTES * 60000;
+
+  for (let timeMs = startDate.getTime(); timeMs <= endDate.getTime(); timeMs += stepMs) {
+    const time = new Date(timeMs);
+    const altAz = getAltAz(name, lat, lon, time);
+
+    if (!isInWindow(altAz, window)) {
+      continue;
+    }
+
+    let durationMinutes = 0;
+    for (let visibleMs = timeMs; visibleMs <= endDate.getTime(); visibleMs += stepMs) {
+      const visibleTime = new Date(visibleMs);
+      const visibleAltAz = getAltAz(name, lat, lon, visibleTime);
+      if (!isInWindow(visibleAltAz, window)) {
+        break;
+      }
+      durationMinutes += STEP_MINUTES;
+    }
+
+    return { entryTime: time, durationMinutes };
+  }
+
+  return null;
+}
+
 export function computeVisibilityScore(
   altAz: AltAz,
   window: SkyWindow,

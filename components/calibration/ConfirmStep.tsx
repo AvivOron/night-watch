@@ -8,14 +8,16 @@ interface ConfirmStepProps {
   altitudeMax: number;
   crossesNorth: boolean;
   viewName: string;
+  notes: string;
   onViewNameChange: (name: string) => void;
+  onNotesChange: (notes: string) => void;
   onSave: () => void;
   onRedo: () => void;
 }
 
 function SkyWindowPreview({
   azimuthMin, azimuthMax, altitudeMin, altitudeMax, crossesNorth,
-}: Omit<ConfirmStepProps, 'viewName' | 'onViewNameChange' | 'onSave' | 'onRedo'>) {
+}: Omit<ConfirmStepProps, 'viewName' | 'notes' | 'onViewNameChange' | 'onNotesChange' | 'onSave' | 'onRedo'>) {
   const spread = crossesNorth
     ? (360 - azimuthMin) + azimuthMax
     : azimuthMax - azimuthMin;
@@ -98,7 +100,7 @@ function SkyWindowPreview({
 
 export function ConfirmStep({
   azimuthMin, azimuthMax, altitudeMin, altitudeMax, crossesNorth,
-  viewName, onViewNameChange, onSave, onRedo,
+  viewName, notes, onViewNameChange, onNotesChange, onSave, onRedo,
 }: ConfirmStepProps) {
   const spread = crossesNorth
     ? (360 - azimuthMin) + azimuthMax
@@ -109,7 +111,7 @@ export function ConfirmStep({
       <div className="text-center space-y-2">
         <CheckCircle className="w-12 h-12 text-emerald-400 mx-auto" />
         <h2 className="text-2xl font-bold text-white">Looking Good!</h2>
-        <p className="text-white/60 text-base">Here's your calibrated sky window</p>
+        <p className="text-white/60 text-base">Here is your calibrated sky window</p>
       </div>
 
       <SkyWindowPreview
@@ -153,6 +155,16 @@ export function ConfirmStep({
           onChange={e => onViewNameChange(e.target.value)}
           className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/30 focus:outline-none focus:border-gold-400/60 text-sm"
           placeholder="e.g. Bedroom Window"
+        />
+      </div>
+
+      <div className="w-full max-w-sm">
+        <p className="text-white/50 text-sm mb-2">Calibration notes</p>
+        <textarea
+          value={notes}
+          onChange={e => onNotesChange(e.target.value)}
+          className="w-full min-h-28 px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/30 focus:outline-none focus:border-gold-400/60 text-sm resize-y"
+          placeholder="e.g. HaCarmel 12, east porch, clear skyline, buildings start only below 8 degrees."
         />
       </div>
 

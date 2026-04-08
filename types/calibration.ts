@@ -15,3 +15,24 @@ export interface CalibrationState {
   altitudeMax: number | null;
   crossesNorth: boolean;
 }
+
+export interface CalibrationLogPayload {
+  skyWindow: {
+    name: string;
+    lat: number;
+    lng: number;
+    azimuthMin: number;
+    azimuthMax: number;
+    altitudeMin: number;
+    altitudeMax: number;
+    crossesNorth: boolean;
+  };
+  notes?: string;
+  context?: {
+    address?: string;
+    facingDirection?: string;
+    obstructionSummary?: string;
+    whyMoonMayBeMissing?: string;
+  };
+  recordedAt?: string;
+}

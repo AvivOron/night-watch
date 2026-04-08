@@ -1,6 +1,6 @@
 import { CELESTIAL_BODIES } from './bodies';
 import { getAltAz, getRiseSetTimes, getMoonPhase, getMoonPhaseName, getSunsetSunrise } from './calculations';
-import { isInWindow, computeVisibilityScore } from './visibility';
+import { isInWindow, computeVisibilityScore, findWindowVisibility } from './visibility';
 import type { CelestialEvent, NightSummary, SkyWindow } from '@/types/astronomy';
 
 export async function buildNightSummary(
@@ -50,6 +50,33 @@ export async function buildNightSummary(
         inSkyWindow: inWindow,
         visibilityScore: visScore,
       });
+    }
+
+    if (skyWindow) {
+      const visibleWindow = findWindowVisibility(body.name, lat, lon, skyWindow, nightStart, nightEnd);
+
+      if (visibleWindow) {
+        const altAz = getAltAz(body.name, lat, lon, visibleWindow.entryTime);
+        const visScore = computeVisibilityScore(
+          altAz,
+          skyWindow,
+          cloudCover,
+          moonPhase,
+          body.magnitude,
+          body.category
+        );
+
+        events.push({
+          id: `${body.name}-visible-${visibleWindow.entryTime.getTime()}`,
+          body,
+          type: 'visible',
+          time: visibleWindow.entryTime,
+          altAz,
+          inSkyWindow: true,
+          visibilityScore: visScore,
+          durationInWindow: visibleWindow.durationMinutes,
+        });
+      }
     }
   }
 

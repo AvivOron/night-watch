@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { useDeviceOrientation } from '@/hooks/useDeviceOrientation';
-import { saveSkyWindow } from '@/lib/storage/calibration';
+import { saveSkyWindow, logCalibration } from '@/lib/storage/calibration';
 import type { SkyWindow } from '@/types/astronomy';
 import { IntroStep } from './IntroStep';
 import { CompassStep } from './CompassStep';
@@ -61,6 +61,7 @@ function computeAltitudeRange(altitudes: number[]): { min: number; max: number }
 export function CalibrationWizard({ lat, lon, onComplete }: CalibrationWizardProps) {
   const [state, setState] = useState<CalibrationState>(INITIAL_STATE);
   const [viewName, setViewName] = useState('My Window');
+  const [notes, setNotes] = useState('');
   const orientation = useDeviceOrientation();
 
   const goToStep = useCallback(
@@ -89,7 +90,7 @@ export function CalibrationWizard({ lat, lon, onComplete }: CalibrationWizardPro
     }));
   }, []);
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     if (
       state.azimuthMin === null ||
       state.azimuthMax === null ||
@@ -110,8 +111,16 @@ export function CalibrationWizard({ lat, lon, onComplete }: CalibrationWizardPro
     };
 
     saveSkyWindow(window);
+    try {
+      await logCalibration({
+        skyWindow: window,
+        notes,
+      });
+    } catch (error) {
+      console.error('Failed to send calibration log:', error);
+    }
     onComplete();
-  }, [state, viewName, lat, lon, onComplete]);
+  }, [state, viewName, lat, lon, notes, onComplete]);
 
   const handleRedo = useCallback(() => {
     setState(INITIAL_STATE);
@@ -157,7 +166,9 @@ export function CalibrationWizard({ lat, lon, onComplete }: CalibrationWizardPro
         altitudeMax={state.altitudeMax!}
         crossesNorth={state.crossesNorth}
         viewName={viewName}
+        notes={notes}
         onViewNameChange={setViewName}
+        onNotesChange={setNotes}
         onSave={handleSave}
         onRedo={handleRedo}
       />

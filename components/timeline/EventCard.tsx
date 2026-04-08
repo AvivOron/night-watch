@@ -18,6 +18,7 @@ const EVENT_LABELS: Record<string, string> = {
   rise: 'Rises',
   set: 'Sets',
   transit: 'Peak',
+  visible: 'In View',
   moon_phase: 'Phase',
 };
 

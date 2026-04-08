@@ -1,4 +1,5 @@
 import type { SkyWindow } from '@/types/astronomy';
+import type { CalibrationLogPayload } from '@/types/calibration';
 
 const KEY = 'night-watch-sky-windows';
 const ACTIVE_KEY = 'night-watch-active-window';
@@ -19,6 +20,21 @@ export function saveSkyWindow(window: SkyWindow): void {
   }
   localStorage.setItem(KEY, JSON.stringify(stored));
   localStorage.setItem(ACTIVE_KEY, window.name);
+}
+
+export async function logCalibration(payload: CalibrationLogPayload): Promise<void> {
+  const res = await fetch('/api/calibration', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ...payload,
+      recordedAt: payload.recordedAt ?? new Date().toISOString(),
+    }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Calibration log failed with status ${res.status}`);
+  }
 }
 
 export function loadSkyWindow(): SkyWindow | null {

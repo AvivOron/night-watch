@@ -13,7 +13,7 @@ export type BodyName =
   | 'M45'
   | 'M13';
 
-export type EventType = 'rise' | 'set' | 'transit' | 'moon_phase';
+export type EventType = 'rise' | 'set' | 'transit' | 'moon_phase' | 'visible';
 
 export interface AltAz {
   altitude: number; // degrees above horizon, negative = below
