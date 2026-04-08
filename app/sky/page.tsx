@@ -13,8 +13,7 @@ const AROverlay = dynamic(
   { ssr: false }
 );
 
-function ARHint() {
-  const [visible, setVisible] = useState(true);
+function ARHint({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   if (!visible) return null;
   return (
     <div className="absolute bottom-28 left-4 right-4 z-20 rounded-2xl bg-navy-900/80 backdrop-blur-md border border-white/10 p-4 flex gap-3 animate-slide-up">
@@ -25,7 +24,7 @@ function ARHint() {
           The gold rectangle shows your calibrated window. Stars and planets are labeled as dots.
         </p>
       </div>
-      <button onClick={() => setVisible(false)} className="text-white/40 text-lg leading-none">×</button>
+      <button onClick={onClose} className="text-white/40 text-lg leading-none">×</button>
     </div>
   );
 }
@@ -38,6 +37,7 @@ function SkyPageContent() {
   const { skyWindow } = useSkyWindow();
   const orientation = useDeviceOrientation();
   const [sensorPermissionNeeded, setSensorPermissionNeeded] = useState(false);
+  const [showHint, setShowHint] = useState(true);
 
   // Check if we need to ask for iOS sensor permission
   useEffect(() => {
@@ -67,6 +67,7 @@ function SkyPageContent() {
           lon={geo.lon!}
           skyWindow={skyWindow}
           targetBody={targetBody}
+          onDetailsOpen={() => setShowHint(false)}
         />
       )}
 
@@ -115,7 +116,7 @@ function SkyPageContent() {
         </div>
       )}
 
-      {!sensorPermissionNeeded && <ARHint />}
+      {!sensorPermissionNeeded && <ARHint visible={showHint} onClose={() => setShowHint(false)} />}
 
       {/* Bottom nav */}
       <nav className="absolute bottom-0 left-0 right-0 z-20 border-t border-white/10 bg-navy-900/70 backdrop-blur-md flex">

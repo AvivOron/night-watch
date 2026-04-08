@@ -5,6 +5,7 @@ import { VisibilityDot } from '@/components/ui/VisibilityDot';
 interface ObjectDetailsProps {
   event: CelestialEvent;
   onClose: () => void;
+  source?: 'default' | 'ar';
 }
 
 const BODY_EMOJIS: Record<string, string> = {
@@ -12,8 +13,9 @@ const BODY_EMOJIS: Record<string, string> = {
   Mercury: '⚫', Uranus: '🔵', Neptune: '💙', M31: '🌌', M42: '🌠', M45: '⭐', M13: '✦',
 };
 
-export function ObjectDetails({ event, onClose }: ObjectDetailsProps) {
+export function ObjectDetails({ event, onClose, source = 'default' }: ObjectDetailsProps) {
   const { body, time, altAz, visibilityScore, durationInWindow } = event;
+  const isAR = source === 'ar';
   const timeStr = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
   const visibleUntil = durationInWindow ? new Date(time.getTime() + durationInWindow * 60000) : null;
   const visibleRange = durationInWindow && visibleUntil
@@ -23,7 +25,11 @@ export function ObjectDetails({ event, onClose }: ObjectDetailsProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-end">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full rounded-t-3xl border-t border-white/10 bg-navy-900/95 backdrop-blur-xl p-6 space-y-5 pb-10">
+      <div
+        className={`relative w-full rounded-t-3xl border-t border-white/10 bg-navy-900/95 backdrop-blur-xl p-6 space-y-5 ${
+          isAR ? 'pb-28' : 'pb-10'
+        }`}
+      >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="text-3xl">{BODY_EMOJIS[body.name] ?? '⭐'}</span>
@@ -40,10 +46,12 @@ export function ObjectDetails({ event, onClose }: ObjectDetailsProps) {
         <p className="text-white/70 text-sm leading-relaxed">{body.description}</p>
 
         <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-xl bg-white/5 p-3 space-y-1">
-            <p className="text-white/40 text-xs">Event Time</p>
-            <p className="text-white font-medium">{timeStr}</p>
-          </div>
+          {!isAR && (
+            <div className="rounded-xl bg-white/5 p-3 space-y-1">
+              <p className="text-white/40 text-xs">Event Time</p>
+              <p className="text-white font-medium">{timeStr}</p>
+            </div>
+          )}
           <div className="rounded-xl bg-white/5 p-3 space-y-1">
             <p className="text-white/40 text-xs">Visible Window</p>
             <p className="text-white font-medium">{visibleRange ?? 'At this moment'}</p>
@@ -67,24 +75,26 @@ export function ObjectDetails({ event, onClose }: ObjectDetailsProps) {
           <p className="text-white/70 text-sm">{body.funFact}</p>
         </div>
 
-        <div className="flex gap-2">
-          <a
-            href={googleCalendarUrl(event)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-white/8 border border-white/10 text-white/70 text-sm font-medium active:scale-[0.98] transition-transform"
-          >
-            <CalendarPlus className="w-4 h-4" />
-            Google
-          </a>
-          <button
-            onClick={() => downloadICS(event)}
-            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-white/8 border border-white/10 text-white/70 text-sm font-medium active:scale-[0.98] transition-transform"
-          >
-            <CalendarPlus className="w-4 h-4" />
-            Apple / ICS
-          </button>
-        </div>
+        {!isAR && (
+          <div className="flex gap-2">
+            <a
+              href={googleCalendarUrl(event)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-white/8 border border-white/10 text-white/70 text-sm font-medium active:scale-[0.98] transition-transform"
+            >
+              <CalendarPlus className="w-4 h-4" />
+              Google
+            </a>
+            <button
+              onClick={() => downloadICS(event)}
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-white/8 border border-white/10 text-white/70 text-sm font-medium active:scale-[0.98] transition-transform"
+            >
+              <CalendarPlus className="w-4 h-4" />
+              Apple / ICS
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
