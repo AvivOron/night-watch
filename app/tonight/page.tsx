@@ -41,6 +41,7 @@ export default function TonightPage() {
   const nightEnd = times.sunrise ?? new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 6, 0, 0);
 
   const filteredEvents = (summary?.events ?? []).filter(e => {
+    if (skyWindow && !e.inSkyWindow) return false;
     if (filter === 'all') return true;
     return e.body.category === filter;
   });
@@ -111,7 +112,7 @@ export default function TonightPage() {
               <h2 className="text-white font-semibold">Tonight&apos;s Sky</h2>
               {summary && (
                 <span className="text-white/40 text-xs">
-                  {summary.events.length} events
+                  {filteredEvents.length} events
                 </span>
               )}
             </div>
