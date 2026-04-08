@@ -1,6 +1,6 @@
 import { CELESTIAL_BODIES } from './bodies';
 import { getAltAz, getRiseSetTimes, getMoonPhase, getMoonPhaseName, getSunsetSunrise } from './calculations';
-import { isInWindow, computeVisibilityScore, findWindowVisibility } from './visibility';
+import { isInWindow, computeVisibilityScore, findWindowVisibility, minutesInWindowFromNow } from './visibility';
 import type { CelestialEvent, NightSummary, SkyWindow } from '@/types/astronomy';
 
 const DEDUPE_WINDOW_MS = 20 * 60 * 1000;
@@ -35,6 +35,19 @@ function dedupeEvents(events: CelestialEvent[]): CelestialEvent[] {
   }
 
   return deduped;
+}
+
+const VISIBILITY_ORDER: Record<string, number> = {
+  excellent: 3,
+  good: 2,
+  low: 1,
+  'not-visible': 0,
+};
+
+function sortRecommendationCandidates(a: CelestialEvent, b: CelestialEvent): number {
+  const scoreDiff = (VISIBILITY_ORDER[b.visibilityScore] ?? 0) - (VISIBILITY_ORDER[a.visibilityScore] ?? 0);
+  if (scoreDiff !== 0) return scoreDiff;
+  return a.time.getTime() - b.time.getTime();
 }
 
 export async function buildNightSummary(
@@ -118,17 +131,57 @@ export async function buildNightSummary(
   events.sort((a, b) => a.time.getTime() - b.time.getTime());
   const visibleEvents = dedupeEvents(events);
 
-  // Find best recommendation: highest scoring in-window event
-  // For future nights, consider all events; for tonight, prefer future ones
-  const isTonight = nightStart.toDateString() === now.toDateString();
-  const candidates = visibleEvents.filter(
-    e => e.inSkyWindow && e.visibilityScore !== 'not-visible' && (!isTonight || e.time >= now)
-  );
-  candidates.sort((a, b) => {
-    const order: Record<string, number> = { excellent: 3, good: 2, low: 1, 'not-visible': 0 };
-    return (order[b.visibilityScore] ?? 0) - (order[a.visibilityScore] ?? 0);
-  });
-  const recommendation = candidates[0] ?? null;
+  // Find best recommendation: prefer objects actually visible right now during the active night.
+  const isActiveNight = now >= nightStart && now <= nightEnd;
+  let recommendation: CelestialEvent | null = null;
+
+  if (skyWindow && isActiveNight) {
+    const currentVisibleCandidates: CelestialEvent[] = [];
+
+    for (const body of CELESTIAL_BODIES) {
+      if (body.name === 'Sun') continue;
+
+      const altAz = getAltAz(body.name, lat, lon, now);
+      if (!isInWindow(altAz, skyWindow)) {
+        continue;
+      }
+
+      const visibilityScore = computeVisibilityScore(
+        altAz,
+        skyWindow,
+        cloudCover,
+        moonPhase,
+        body.magnitude,
+        body.category
+      );
+
+      if (visibilityScore === 'not-visible') {
+        continue;
+      }
+
+      currentVisibleCandidates.push({
+        id: `${body.name}-visible-now-${now.getTime()}`,
+        body,
+        type: 'visible',
+        time: now,
+        altAz,
+        inSkyWindow: true,
+        visibilityScore,
+        durationInWindow: minutesInWindowFromNow(body.name, lat, lon, skyWindow, now),
+      });
+    }
+
+    currentVisibleCandidates.sort(sortRecommendationCandidates);
+    recommendation = currentVisibleCandidates[0] ?? null;
+  }
+
+  if (!recommendation) {
+    const candidates = visibleEvents.filter(
+      e => e.inSkyWindow && e.visibilityScore !== 'not-visible' && (!isActiveNight || e.time >= now)
+    );
+    candidates.sort(sortRecommendationCandidates);
+    recommendation = candidates[0] ?? null;
+  }
 
   // Overall quality score
   const excellentCount = visibleEvents.filter(e => e.visibilityScore === 'excellent').length;

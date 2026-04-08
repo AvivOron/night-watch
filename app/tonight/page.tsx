@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Settings, Camera, Telescope, ChevronLeft, ChevronRight } from 'lucide-react';
 import { StarfieldCanvas } from '@/components/ui/StarfieldCanvas';
@@ -23,12 +23,38 @@ function startOfDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
+function fallbackNightAnchorDate(now: Date): Date {
+  const anchor = startOfDay(now);
+  if (now.getHours() < 6) {
+    anchor.setDate(anchor.getDate() - 1);
+  }
+  return anchor;
+}
+
+function getNightAnchorDate(now: Date, lat: number | null, lon: number | null): Date {
+  if (lat === null || lon === null) {
+    return fallbackNightAnchorDate(now);
+  }
+
+  const today = startOfDay(now);
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  const yesterdayNight = getSunsetSunrise(lat, lon, yesterday);
+  if (yesterdayNight.sunrise && now < yesterdayNight.sunrise) {
+    return yesterday;
+  }
+
+  return today;
+}
+
 export default function TonightPage() {
   const router = useRouter();
   const geo = useGeolocation();
   const city = useCity(geo.lat, geo.lon);
   const { skyWindow } = useSkyWindow();
-  const [selectedDate, setSelectedDate] = useState(() => startOfDay(new Date()));
+  const [selectedDate, setSelectedDate] = useState(() => fallbackNightAnchorDate(new Date()));
+  const autoDateRef = useRef(true);
   const { weather, loading: weatherLoading } = useWeather(geo.lat, geo.lon, selectedDate);
 
   const { days: bestNights, loading: bestNightsLoading } = useBestNights(geo.lat, geo.lon, skyWindow);
@@ -44,11 +70,19 @@ export default function TonightPage() {
   const [filter, setFilter] = useState<FilterType>('all');
   const [selectedEvent, setSelectedEvent] = useState<CelestialEvent | null>(null);
 
-  const today = startOfDay(new Date());
-  const isToday = selectedDate.getTime() === today.getTime();
-  const dayOffset = Math.round((selectedDate.getTime() - today.getTime()) / 86400000);
+  const anchorToday = getNightAnchorDate(new Date(), geo.lat, geo.lon);
+  const isToday = selectedDate.getTime() === anchorToday.getTime();
+  const dayOffset = Math.round((selectedDate.getTime() - anchorToday.getTime()) / 86400000);
+
+  useEffect(() => {
+    if (!autoDateRef.current) return;
+    setSelectedDate(prev => (
+      prev.getTime() === anchorToday.getTime() ? prev : anchorToday
+    ));
+  }, [anchorToday]);
 
   function shiftDay(delta: number) {
+    autoDateRef.current = false;
     setSelectedDate(d => {
       const next = new Date(d);
       next.setDate(next.getDate() + delta);
@@ -71,6 +105,7 @@ export default function TonightPage() {
 
   const moonPhaseLabel = summary?.moonPhaseName ?? '';
   const moonPhaseEmoji = getMoonEmoji(summary?.moonPhase ?? 0);
+  const showQualitySkeleton = eventsLoading || weatherLoading || !summary;
 
   return (
     <main className="relative min-h-dvh flex flex-col pb-20">
@@ -116,10 +151,11 @@ export default function TonightPage() {
             {isToday ? 'Tonight' : selectedDate.toLocaleDateString([], { month: 'short', day: 'numeric' })}
             <input
               type="date"
-              min={today.toISOString().slice(0, 10)}
+              min={anchorToday.toISOString().slice(0, 10)}
               value={selectedDate.toISOString().slice(0, 10)}
               onChange={e => {
                 if (!e.target.value) return;
+                autoDateRef.current = false;
                 setSelectedDate(new Date(e.target.value + 'T00:00:00'));
               }}
               className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
@@ -138,7 +174,18 @@ export default function TonightPage() {
         <WeatherBar weather={weather} loading={weatherLoading} />
 
         {/* Sky quality */}
-        {summary && (
+        {showQualitySkeleton ? (
+          <div className="mx-4 mt-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 animate-pulse">
+            <div className="flex items-center gap-4">
+              <div className="flex-1 space-y-2">
+                <div className="h-3 w-24 rounded-full bg-white/10" />
+                <div className="h-1.5 w-full rounded-full bg-white/10" />
+                <div className="h-3 w-40 rounded-full bg-white/10" />
+              </div>
+              <div className="h-8 w-10 rounded-full bg-white/10" />
+            </div>
+          </div>
+        ) : (
           <div className="mx-4 mt-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 flex items-center gap-4">
             <div className="flex-1">
               <p className="text-white/50 text-xs uppercase tracking-wide mb-1">Night Quality</p>
@@ -229,13 +276,15 @@ export default function TonightPage() {
                   .slice(0, 7)
                   .map(day => {
                     const isSelected = day.date.toDateString() === selectedDate.toDateString();
-                    const tod = startOfDay(new Date());
-                    const isToday = day.date.toDateString() === tod.toDateString();
+                    const isToday = day.date.toDateString() === anchorToday.toDateString();
                     const label = isToday ? 'Tonight' : day.date.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
                     return (
                       <button
                         key={day.date.getTime()}
-                        onClick={() => setSelectedDate(day.date)}
+                        onClick={() => {
+                          autoDateRef.current = false;
+                          setSelectedDate(day.date);
+                        }}
                         className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all active:scale-[0.98] ${isSelected ? 'bg-gold-400/10 border-gold-400/30' : 'bg-white/5 border-white/8'}`}
                       >
                         <div className="flex-1 text-left">

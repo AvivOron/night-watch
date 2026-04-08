@@ -19,7 +19,11 @@ export function EventTimeline({ events, onEventTap }: EventTimelineProps) {
 
   useEffect(() => {
     const scrollEl = scrollRef.current;
-    if (!scrollEl || lastPastIndex < 0) return;
+    if (!scrollEl) return;
+    if (lastPastIndex < 0) {
+      scrollEl.scrollLeft = 0;
+      return;
+    }
     const cardEl = cardRefs.current[lastPastIndex];
     if (!cardEl) return;
     scrollEl.scrollLeft = Math.max(0, cardEl.offsetLeft - 4);

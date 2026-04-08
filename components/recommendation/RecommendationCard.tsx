@@ -57,7 +57,12 @@ export function RecommendationCard({ event, loading }: RecommendationCardProps) 
 
   const { body, time, visibilityScore, durationInWindow } = event;
   const timeStr = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-  const isPast = time < new Date();
+  const now = new Date();
+  const visibleUntil =
+    durationInWindow && event.type === 'visible'
+      ? new Date(time.getTime() + durationInWindow * 60000)
+      : null;
+  const isVisibleNow = event.type === 'visible' && time <= now && (!!visibleUntil ? now < visibleUntil : true);
 
   return (
     <GlassCard
@@ -71,7 +76,7 @@ export function RecommendationCard({ event, loading }: RecommendationCardProps) 
         <div className="flex items-start justify-between">
           <div>
             <p className="text-white/50 text-xs uppercase tracking-widest mb-1">
-              {isPast ? 'Visible Now' : 'Best Tonight'}
+              {isVisibleNow ? 'Visible Now' : 'Best Tonight'}
             </p>
             <div className="flex items-center gap-3">
               <span className="text-4xl">{BODY_EMOJIS[body.name] ?? '⭐'}</span>
@@ -88,7 +93,7 @@ export function RecommendationCard({ event, loading }: RecommendationCardProps) 
         <p className="text-white/60 text-sm leading-relaxed">{body.description}</p>
 
         <div className="flex items-center gap-4 text-sm">
-          {!isPast && (
+          {!isVisibleNow && (
             <div className="flex items-center gap-1.5 text-white/60">
               <Clock className="w-4 h-4 text-gold-400" />
               <span>At {timeStr}</span>

@@ -24,6 +24,69 @@ function seeingLabel(quality: 'excellent' | 'good' | 'fair' | 'poor'): string {
   }
 }
 
+function pickRepresentativeNightSlot(hourly: HourlySlot[], date: Date): HourlySlot | null {
+  const y = date.getFullYear();
+  const mo = date.getMonth();
+  const d = date.getDate();
+
+  const sameNightLate = hourly.filter(h =>
+    h.time.getFullYear() === y &&
+    h.time.getMonth() === mo &&
+    h.time.getDate() === d &&
+    h.time.getHours() >= 20
+  );
+
+  if (sameNightLate.length > 0) {
+    return (
+      sameNightLate.find(h => h.time.getHours() === 22) ??
+      sameNightLate[0]
+    );
+  }
+
+  const nextDayOvernight = new Date(date);
+  nextDayOvernight.setDate(nextDayOvernight.getDate() + 1);
+  const y2 = nextDayOvernight.getFullYear();
+  const mo2 = nextDayOvernight.getMonth();
+  const d2 = nextDayOvernight.getDate();
+
+  const overnight = hourly.filter(h =>
+    h.time.getFullYear() === y2 &&
+    h.time.getMonth() === mo2 &&
+    h.time.getDate() === d2 &&
+    h.time.getHours() < 6
+  );
+
+  if (overnight.length > 0) {
+    return (
+      overnight.find(h => h.time.getHours() === 0) ??
+      overnight[0]
+    );
+  }
+
+  return (
+    hourly.find(h =>
+      h.time.getFullYear() === y &&
+      h.time.getMonth() === mo &&
+      h.time.getDate() === d
+    ) ?? null
+  );
+}
+
+function pickNearestCurrentSlot(hourly: HourlySlot[], now: Date): HourlySlot | null {
+  let best: HourlySlot | null = null;
+  let bestDiff = Number.POSITIVE_INFINITY;
+
+  for (const slot of hourly) {
+    const diff = Math.abs(slot.time.getTime() - now.getTime());
+    if (diff < bestDiff) {
+      best = slot;
+      bestDiff = diff;
+    }
+  }
+
+  return best;
+}
+
 export async function fetchWeather(lat: number, lon: number, date: Date = new Date()): Promise<WeatherData> {
   const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
   const url = `${basePath}/api/weather?lat=${lat}&lon=${lon}`;
@@ -45,15 +108,16 @@ export async function fetchWeather(lat: number, lon: number, date: Date = new Da
     weatherCode: weatherCodeArr[i] ?? 0,
   }));
 
-  // Pick the representative hour for the selected night (around 22:00).
-  // Open-Meteo times are local-timezone strings parsed by new Date(), so match
-  // by comparing year/month/date/hour components directly to avoid UTC offset issues.
-  const y = date.getFullYear(), mo = date.getMonth(), d = date.getDate();
-  const current =
-    hourly.find(h => h.time.getFullYear() === y && h.time.getMonth() === mo && h.time.getDate() === d && h.time.getHours() === 22) ??
-    hourly.find(h => h.time.getFullYear() === y && h.time.getMonth() === mo && h.time.getDate() === d && h.time.getHours() >= 20) ??
-    hourly.find(h => h.time.getFullYear() === y && h.time.getMonth() === mo && h.time.getDate() === d) ??
-    null;
+  const now = new Date();
+  const isSelectedDateToday = (
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate()
+  );
+
+  const current = isSelectedDateToday
+    ? pickNearestCurrentSlot(hourly, now)
+    : pickRepresentativeNightSlot(hourly, date);
 
   const noForecast = current === null;
   const currentCloudCover = current?.cloudCoverPercent ?? 0;

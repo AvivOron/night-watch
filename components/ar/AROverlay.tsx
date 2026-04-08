@@ -43,6 +43,15 @@ const BODY_COLORS: Record<string, string> = {
   Deneb: '#ECEFF1',
 };
 
+function getCardinalDirection(heading: number | null): string {
+  if (heading === null) return '--';
+
+  const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+  const normalized = ((heading % 360) + 360) % 360;
+  const index = Math.round(normalized / 45) % directions.length;
+  return directions[index];
+}
+
 export function AROverlay({ lat, lon, skyWindow, targetBody }: AROverlayProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -54,6 +63,9 @@ export function AROverlay({ lat, lon, skyWindow, targetBody }: AROverlayProps) {
   const [selectedEvent, setSelectedEvent] = useState<CelestialEvent | null>(null);
   const [autoTargetName, setAutoTargetName] = useState<string | null>(null);
   const hitTargetsRef = useRef<Array<{ x: number; y: number; radius: number; event: CelestialEvent }>>([]);
+  const heading = orientation.heading;
+  const headingLabel = heading === null ? '--°' : `${Math.round(heading)}°`;
+  const cardinalDirection = getCardinalDirection(heading);
 
   // Keep latest props in refs so the draw loop (runs once) can always read current values
   const skyWindowRef = useRef(skyWindow);
@@ -339,6 +351,23 @@ export function AROverlay({ lat, lon, skyWindow, targetBody }: AROverlayProps) {
           }
         }}
       />
+      <div className="absolute top-4 right-4 rounded-2xl border border-white/15 bg-navy-950/55 px-3 py-2 backdrop-blur-md">
+        <div className="flex items-center gap-3">
+          <div className="relative flex h-10 w-10 items-center justify-center rounded-full border border-gold-400/40 bg-white/5">
+            <div
+              className="absolute h-4 w-0.5 rounded-full bg-gold-400"
+              style={{ transform: `rotate(${heading ?? 0}deg) translateY(-10px)` }}
+            />
+            <span className="text-[10px] font-medium tracking-[0.28em] text-white/75">N</span>
+          </div>
+          <div className="leading-none">
+            <div className="text-[10px] uppercase tracking-[0.28em] text-white/45">Compass</div>
+            <div className="mt-1 text-sm font-semibold text-white">
+              {cardinalDirection} <span className="text-white/60">{headingLabel}</span>
+            </div>
+          </div>
+        </div>
+      </div>
       {!cameraReady && (
         <div className="absolute inset-0 flex items-center justify-center bg-navy-950">
           <div className="text-white/50 animate-pulse">Starting camera…</div>
