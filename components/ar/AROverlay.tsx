@@ -160,14 +160,12 @@ export function AROverlay({ lat, lon, skyWindow, targetBody }: AROverlayProps) {
           event,
         });
 
-        if (!tb && !manualSelectedBodyName) {
-          const distanceFromCenter = Math.hypot(x - canvas.width / 2, y - canvas.height / 2);
-          if (
-            distanceFromCenter <= AUTO_TARGET_RADIUS &&
-            (!bestCenteredBody || distanceFromCenter < bestCenteredBody.distance)
-          ) {
-            bestCenteredBody = { name: body.name, distance: distanceFromCenter };
-          }
+        const distanceFromCenter = Math.hypot(x - canvas.width / 2, y - canvas.height / 2);
+        if (
+          distanceFromCenter <= AUTO_TARGET_RADIUS &&
+          (!bestCenteredBody || distanceFromCenter < bestCenteredBody.distance)
+        ) {
+          bestCenteredBody = { name: body.name, distance: distanceFromCenter };
         }
 
         ctx.beginPath();
