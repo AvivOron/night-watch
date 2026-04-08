@@ -4,8 +4,9 @@ import { useEffect, useRef, useState } from 'react';
 import { useDeviceOrientation } from '@/hooks/useDeviceOrientation';
 import { getAltAz } from '@/lib/astronomy/calculations';
 import { CELESTIAL_BODIES } from '@/lib/astronomy/bodies';
-import type { SkyWindow } from '@/types/astronomy';
-import { isInWindow } from '@/lib/astronomy/visibility';
+import type { CelestialEvent, SkyWindow } from '@/types/astronomy';
+import { computeVisibilityScore, isInWindow, minutesInWindowFromNow } from '@/lib/astronomy/visibility';
+import { ObjectDetails } from '@/components/recommendation/ObjectDetails';
 
 interface AROverlayProps {
   lat: number;
@@ -46,6 +47,8 @@ export function AROverlay({ lat, lon, skyWindow, targetBody }: AROverlayProps) {
   const orientationRawRef = orientation.rawRef; // stable ref object, safe to capture in closure
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [cameraReady, setCameraReady] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<CelestialEvent | null>(null);
+  const hitTargetsRef = useRef<Array<{ x: number; y: number; radius: number; event: CelestialEvent }>>([]);
 
   // Keep latest props in refs so the draw loop (runs once) can always read current values
   const skyWindowRef = useRef(skyWindow);
@@ -63,8 +66,10 @@ export function AROverlay({ lat, lon, skyWindow, targetBody }: AROverlayProps) {
         });
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
+          videoRef.current.onloadedmetadata = () => {
+            setCameraReady(true);
+          };
           videoRef.current.play();
-          setCameraReady(true);
         }
       } catch (e) {
         setCameraError(e instanceof Error ? e.message : 'Camera unavailable');
@@ -92,6 +97,7 @@ export function AROverlay({ lat, lon, skyWindow, targetBody }: AROverlayProps) {
     function draw() {
       if (!canvas || !ctx) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      hitTargetsRef.current = [];
 
       const deviceHeading = orientationRawRef.current.heading ?? 0;
       const centerAlt = orientationRawRef.current.altitude ?? 0;
@@ -119,6 +125,29 @@ export function AROverlay({ lat, lon, skyWindow, targetBody }: AROverlayProps) {
         const color = BODY_COLORS[body.name] ?? '#FFFFFF';
 
         const dotR = body.magnitude < 0 ? 8 : body.magnitude < 3 ? 5 : 3;
+        const durationInWindow = sw && inWindow
+          ? minutesInWindowFromNow(body.name, lat, lon, sw, now)
+          : undefined;
+        const event: CelestialEvent = {
+          id: `${body.name}-ar-${Math.round(now.getTime() / 60000)}`,
+          body,
+          type: 'visible',
+          time: now,
+          altAz,
+          inSkyWindow: inWindow,
+          visibilityScore: sw
+            ? computeVisibilityScore(altAz, sw, 0, 0, body.magnitude, body.category)
+            : 'not-visible',
+          durationInWindow,
+        };
+
+        hitTargetsRef.current.push({
+          x,
+          y,
+          radius: Math.max(18, dotR + 10),
+          event,
+        });
+
         ctx.beginPath();
         ctx.arc(x, y, dotR, 0, Math.PI * 2);
         ctx.fillStyle = color;
@@ -203,11 +232,35 @@ export function AROverlay({ lat, lon, skyWindow, targetBody }: AROverlayProps) {
         muted
         style={{ opacity: cameraReady ? 1 : 0 }}
       />
-      <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none" />
+      <canvas
+        ref={canvasRef}
+        className="absolute inset-0"
+        onClick={e => {
+          const rect = e.currentTarget.getBoundingClientRect();
+          const x = e.clientX - rect.left;
+          const y = e.clientY - rect.top;
+
+          let best: { distance: number; event: CelestialEvent } | null = null;
+          for (const target of hitTargetsRef.current) {
+            const distance = Math.hypot(target.x - x, target.y - y);
+            if (distance > target.radius) continue;
+            if (!best || distance < best.distance) {
+              best = { distance, event: target.event };
+            }
+          }
+
+          if (best) {
+            setSelectedEvent(best.event);
+          }
+        }}
+      />
       {!cameraReady && (
         <div className="absolute inset-0 flex items-center justify-center bg-navy-950">
           <div className="text-white/50 animate-pulse">Starting camera…</div>
         </div>
+      )}
+      {selectedEvent && (
+        <ObjectDetails event={selectedEvent} onClose={() => setSelectedEvent(null)} />
       )}
     </div>
   );
