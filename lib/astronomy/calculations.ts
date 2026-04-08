@@ -1,10 +1,27 @@
 import * as Astronomy from 'astronomy-engine';
 import type { AltAz, BodyName } from '@/types/astronomy';
 
-type EnginePlanet = Exclude<BodyName, 'M31' | 'M42' | 'M45' | 'M13'>;
+type EnginePlanet = Exclude<
+  BodyName,
+  'M31' | 'M42' | 'M45' | 'M13' |
+  'Sirius' | 'Canopus' | 'Arcturus' | 'Vega' | 'Capella' | 'Rigel' |
+  'Procyon' | 'Betelgeuse' | 'Aldebaran' | 'Spica' | 'Altair' | 'Deneb'
+>;
 
-// Fixed RA/Dec for deep sky objects (J2000 epoch)
-const DSO_COORDS: Partial<Record<BodyName, { ra: number; dec: number }>> = {
+// Fixed RA/Dec coordinates (J2000 epoch) for non-solar-system targets.
+const FIXED_COORDS: Partial<Record<BodyName, { ra: number; dec: number }>> = {
+  Sirius: { ra: 6.7525, dec: -16.7161 },
+  Canopus: { ra: 6.3992, dec: -52.6957 },
+  Arcturus: { ra: 14.261, dec: 19.1824 },
+  Vega: { ra: 18.6156, dec: 38.7837 },
+  Capella: { ra: 5.2782, dec: 45.998 },
+  Rigel: { ra: 5.2423, dec: -8.2016 },
+  Procyon: { ra: 7.655, dec: 5.225 },
+  Betelgeuse: { ra: 5.9195, dec: 7.4071 },
+  Aldebaran: { ra: 4.5987, dec: 16.5093 },
+  Spica: { ra: 13.4199, dec: -11.1613 },
+  Altair: { ra: 19.8464, dec: 8.8683 },
+  Deneb: { ra: 20.6905, dec: 45.2803 },
   M31: { ra: 0.7123, dec: 41.269 },  // Andromeda Galaxy
   M42: { ra: 5.5887, dec: -5.391 }, // Orion Nebula
   M45: { ra: 3.7906, dec: 24.117 }, // Pleiades
@@ -26,16 +43,16 @@ function toAstronomyBody(name: EnginePlanet): Astronomy.Body {
   }
 }
 
-function isDSOName(name: BodyName): boolean {
-  return name in DSO_COORDS;
+function isFixedCoordName(name: BodyName): boolean {
+  return name in FIXED_COORDS;
 }
 
 export function getAltAz(name: BodyName, lat: number, lon: number, date: Date): AltAz {
   const observer = new Astronomy.Observer(lat, lon, 0);
   const time = Astronomy.MakeTime(date);
 
-  if (isDSOName(name)) {
-    const coords = DSO_COORDS[name]!;
+  if (isFixedCoordName(name)) {
+    const coords = FIXED_COORDS[name]!;
     const hor = Astronomy.Horizon(time, observer, coords.ra, coords.dec, 'normal');
     return { altitude: hor.altitude, azimuth: hor.azimuth };
   }
@@ -54,9 +71,9 @@ export function getRiseSetTimes(
 ): { rise: Date | null; transit: Date | null; set: Date | null } {
   const observer = new Astronomy.Observer(lat, lon, 0);
 
-  if (isDSOName(name)) {
-    const coords = DSO_COORDS[name]!;
-    return computeDSOTimes(coords.ra, coords.dec, lat, lon, date);
+  if (isFixedCoordName(name)) {
+    const coords = FIXED_COORDS[name]!;
+    return computeFixedCoordTimes(coords.ra, coords.dec, lat, lon, date);
   }
 
   const body = toAstronomyBody(name as EnginePlanet);
@@ -91,7 +108,7 @@ export function getRiseSetTimes(
   return { rise, transit, set };
 }
 
-function computeDSOTimes(
+function computeFixedCoordTimes(
   ra: number,
   dec: number,
   lat: number,

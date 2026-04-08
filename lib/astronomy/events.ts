@@ -3,6 +3,40 @@ import { getAltAz, getRiseSetTimes, getMoonPhase, getMoonPhaseName, getSunsetSun
 import { isInWindow, computeVisibilityScore, findWindowVisibility } from './visibility';
 import type { CelestialEvent, NightSummary, SkyWindow } from '@/types/astronomy';
 
+const DEDUPE_WINDOW_MS = 20 * 60 * 1000;
+
+function dedupeEvents(events: CelestialEvent[]): CelestialEvent[] {
+  const deduped: CelestialEvent[] = [];
+
+  for (const event of events) {
+    const duplicateIndex = deduped.findIndex(existing =>
+      existing.body.name === event.body.name &&
+      Math.abs(existing.time.getTime() - event.time.getTime()) <= DEDUPE_WINDOW_MS &&
+      (
+        (existing.type === 'visible' && event.type === 'rise') ||
+        (existing.type === 'rise' && event.type === 'visible')
+      )
+    );
+
+    if (duplicateIndex === -1) {
+      deduped.push(event);
+      continue;
+    }
+
+    const existing = deduped[duplicateIndex];
+    if (event.type === 'visible') {
+      deduped[duplicateIndex] = event;
+      continue;
+    }
+
+    if (existing.type === 'visible') {
+      continue;
+    }
+  }
+
+  return deduped;
+}
+
 export async function buildNightSummary(
   lat: number,
   lon: number,
@@ -82,11 +116,12 @@ export async function buildNightSummary(
 
   // Sort chronologically
   events.sort((a, b) => a.time.getTime() - b.time.getTime());
+  const visibleEvents = dedupeEvents(events);
 
   // Find best recommendation: highest scoring in-window event
   // For future nights, consider all events; for tonight, prefer future ones
   const isTonight = nightStart.toDateString() === now.toDateString();
-  const candidates = events.filter(
+  const candidates = visibleEvents.filter(
     e => e.inSkyWindow && e.visibilityScore !== 'not-visible' && (!isTonight || e.time >= now)
   );
   candidates.sort((a, b) => {
@@ -96,8 +131,8 @@ export async function buildNightSummary(
   const recommendation = candidates[0] ?? null;
 
   // Overall quality score
-  const excellentCount = events.filter(e => e.visibilityScore === 'excellent').length;
-  const goodCount = events.filter(e => e.visibilityScore === 'good').length;
+  const excellentCount = visibleEvents.filter(e => e.visibilityScore === 'excellent').length;
+  const goodCount = visibleEvents.filter(e => e.visibilityScore === 'good').length;
   const qualityScore = Math.min(
     100,
     excellentCount * 20 + goodCount * 10 + ((100 - cloudCover) / 100) * 30
@@ -105,7 +140,7 @@ export async function buildNightSummary(
 
   return {
     date: now,
-    events,
+    events: visibleEvents,
     moonPhase,
     moonPhaseName,
     recommendation,

@@ -13,8 +13,12 @@ const BODY_EMOJIS: Record<string, string> = {
 };
 
 export function ObjectDetails({ event, onClose }: ObjectDetailsProps) {
-  const { body, time, altAz, visibilityScore } = event;
+  const { body, time, altAz, visibilityScore, durationInWindow } = event;
   const timeStr = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  const visibleUntil = durationInWindow ? new Date(time.getTime() + durationInWindow * 60000) : null;
+  const visibleRange = durationInWindow && visibleUntil
+    ? `${timeStr} - ${visibleUntil.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}`
+    : null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end">
@@ -39,6 +43,10 @@ export function ObjectDetails({ event, onClose }: ObjectDetailsProps) {
           <div className="rounded-xl bg-white/5 p-3 space-y-1">
             <p className="text-white/40 text-xs">Event Time</p>
             <p className="text-white font-medium">{timeStr}</p>
+          </div>
+          <div className="rounded-xl bg-white/5 p-3 space-y-1">
+            <p className="text-white/40 text-xs">Visible Window</p>
+            <p className="text-white font-medium">{visibleRange ?? 'At this moment'}</p>
           </div>
           <div className="rounded-xl bg-white/5 p-3 space-y-1">
             <p className="text-white/40 text-xs">Altitude</p>

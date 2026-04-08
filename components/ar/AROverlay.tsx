@@ -24,6 +24,18 @@ const BODY_COLORS: Record<string, string> = {
   Mercury: '#B0BEC5',
   Uranus: '#B2EBF2',
   Neptune: '#90CAF9',
+  Sirius: '#E3F2FD',
+  Canopus: '#FFF8E1',
+  Arcturus: '#FFE0B2',
+  Vega: '#E1F5FE',
+  Capella: '#FFFDE7',
+  Rigel: '#E8EAF6',
+  Procyon: '#FFFDE7',
+  Betelgeuse: '#FFCCBC',
+  Aldebaran: '#FFCC80',
+  Spica: '#E3F2FD',
+  Altair: '#FAFAFA',
+  Deneb: '#ECEFF1',
 };
 
 export function AROverlay({ lat, lon, skyWindow, targetBody }: AROverlayProps) {
