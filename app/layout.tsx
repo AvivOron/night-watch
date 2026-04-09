@@ -9,13 +9,34 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: 'Night Watch — Your Personal Sky Guide',
-  description: 'See exactly what celestial objects are visible through your window tonight.',
-  manifest: '/manifest.json',
+  metadataBase: new URL('https://avivo.dev/night-watch'),
+  title: {
+    default: 'Night Watch — Your Personal Sky Guide',
+    template: '%s | Night Watch',
+  },
+  description: 'See exactly what celestial objects are visible through your window tonight. Personalized stargazing with AR overlay, real-time celestial positions, and weather-adjusted visibility.',
+  keywords: ['stargazing', 'astronomy', 'night sky', 'celestial', 'planets', 'stars', 'AR', 'augmented reality', 'telescope'],
+  manifest: '/night-watch/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
     title: 'Night Watch',
+  },
+  openGraph: {
+    type: 'website',
+    siteName: 'Night Watch',
+    title: 'Night Watch — Your Personal Sky Guide',
+    description: 'See exactly what celestial objects are visible through your window tonight. Personalized stargazing with AR overlay and real-time celestial positions.',
+    locale: 'en_US',
+  },
+  twitter: {
+    card: 'summary',
+    title: 'Night Watch — Your Personal Sky Guide',
+    description: 'See exactly what celestial objects are visible through your window tonight.',
+  },
+  robots: {
+    index: true,
+    follow: true,
   },
 };
 

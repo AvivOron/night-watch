@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://avivo.dev/night-watch/sitemap.xml
