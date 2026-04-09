@@ -1,6 +1,6 @@
 import { ImageResponse } from 'next/og';
 
-export const alt = 'Night Watch — Your Personal Sky Guide';
+export const alt = 'Night Watch — See What\'s Visible in Your Sky Tonight';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
@@ -104,9 +104,28 @@ export default function Image() {
             textAlign: 'center',
             maxWidth: 700,
             lineHeight: 1.5,
+            marginBottom: 40,
           }}
         >
           See exactly which planets, stars, and galaxies are visible through your window — right now.
+        </div>
+
+        {/* CTA */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            background: '#f4c842',
+            color: '#020817',
+            fontSize: 20,
+            fontWeight: 700,
+            padding: '14px 32px',
+            borderRadius: 14,
+            letterSpacing: '0.5px',
+          }}
+        >
+          See What&apos;s Visible Tonight →
         </div>
       </div>
     ),

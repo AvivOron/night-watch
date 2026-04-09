@@ -11,7 +11,7 @@ const spaceGrotesk = Space_Grotesk({
 export const metadata: Metadata = {
   metadataBase: new URL('https://avivo.dev/night-watch'),
   title: {
-    default: 'Night Watch — Your Personal Sky Guide',
+    default: 'Night Watch — See What\'s Visible in Your Sky Tonight',
     template: '%s | Night Watch',
   },
   description: 'See exactly what celestial objects are visible through your window tonight. Personalized stargazing with AR overlay, real-time celestial positions, and weather-adjusted visibility.',
@@ -25,13 +25,13 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     siteName: 'Night Watch',
-    title: 'Night Watch — Your Personal Sky Guide',
+    title: 'Night Watch — See What\'s Visible in Your Sky Tonight',
     description: 'See exactly what celestial objects are visible through your window tonight. Personalized stargazing with AR overlay and real-time celestial positions.',
     locale: 'en_US',
   },
   twitter: {
     card: 'summary',
-    title: 'Night Watch — Your Personal Sky Guide',
+    title: 'Night Watch — See What\'s Visible in Your Sky Tonight',
     description: 'See exactly what celestial objects are visible through your window tonight.',
   },
   robots: {
