@@ -41,6 +41,28 @@ type WindowPoint = {
   yPercent: number;
 };
 
+function parseDateParam(value: string | null): Date | null {
+  if (!value) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return null;
+
+  const [, yearString, monthString, dayString] = match;
+  const year = Number(yearString);
+  const month = Number(monthString);
+  const day = Number(dayString);
+  const parsed = new Date(year, month - 1, day);
+
+  if (
+    parsed.getFullYear() !== year ||
+    parsed.getMonth() !== month - 1 ||
+    parsed.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return parsed;
+}
+
 function startOfDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
@@ -136,13 +158,14 @@ function WindowViewContent() {
   const router = useRouter();
   const params = useSearchParams();
   const targetBody = params.get('body');
+  const requestedDate = parseDateParam(params.get('date'));
   const geo = useGeolocation();
   const { skyWindow } = useSkyWindow();
   const [selectedEvent, setSelectedEvent] = useState<CelestialEvent | null>(null);
   const [offsetMinutes, setOffsetMinutes] = useState(0);
   const [hasScrubbed, setHasScrubbed] = useState(false);
   const now = new Date();
-  const nightAnchorDate = getNightAnchorDate(now, geo.lat, geo.lon);
+  const nightAnchorDate = requestedDate ?? getNightAnchorDate(now, geo.lat, geo.lon);
 
   const nightWindow = geo.lat === null || geo.lon === null
     ? null
@@ -178,7 +201,7 @@ function WindowViewContent() {
     : 0;
   const effectiveOffsetMinutes = hasScrubbed ? offsetMinutes : (isActiveNight ? currentNightOffsetMinutes : 0);
   const clampedOffsetMinutes = Math.min(effectiveOffsetMinutes, maxOffsetMinutes);
-  const showingCurrentTime = !!nightWindow && !hasScrubbed && !isActiveNight;
+  const showingCurrentTime = !requestedDate && !!nightWindow && !hasScrubbed && !isActiveNight;
   const displayTime = showingCurrentTime
     ? now
     : new Date(scrubStart.getTime() + clampedOffsetMinutes * 60000);

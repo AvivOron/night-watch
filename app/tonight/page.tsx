@@ -31,6 +31,13 @@ function fallbackNightAnchorDate(now: Date): Date {
   return anchor;
 }
 
+function formatDateParam(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function getNightAnchorDate(now: Date, lat: number | null, lon: number | null): Date {
   if (lat === null || lon === null) {
     return fallbackNightAnchorDate(now);
@@ -117,6 +124,8 @@ export default function TonightPage() {
   const moonPhaseEmoji = getMoonEmoji(summary?.moonPhase ?? 0);
   const showQualitySkeleton = eventsLoading || weatherLoading || !summary;
   const showRecommendationSkeleton = eventsLoading || weatherLoading || !summary;
+  const selectedDateParam = formatDateParam(selectedDate);
+  const skyViewHref = isDesktop ? `/window-view?date=${selectedDateParam}` : `/sky?date=${selectedDateParam}`;
 
   return (
     <main className="relative min-h-dvh flex flex-col pb-20">
@@ -163,8 +172,8 @@ export default function TonightPage() {
               {isToday ? 'Tonight' : selectedDate.toLocaleDateString([], { month: 'short', day: 'numeric' })}
               <input
                 type="date"
-                min={anchorToday.toISOString().slice(0, 10)}
-                value={selectedDate.toISOString().slice(0, 10)}
+                min={formatDateParam(anchorToday)}
+                value={selectedDateParam}
                 onChange={e => {
                   if (!e.target.value) return;
                   autoDateRef.current = false;
@@ -246,6 +255,7 @@ export default function TonightPage() {
                   ) : (
                     <RecommendationCard
                       event={summary?.recommendation ?? null}
+                      selectedDate={selectedDate}
                       loading={showRecommendationSkeleton}
                     />
                   )}
@@ -338,7 +348,7 @@ export default function TonightPage() {
           <span className="text-xs">Tonight</span>
         </button>
         <button
-          onClick={() => router.push(isDesktop ? '/window-view' : '/sky')}
+          onClick={() => router.push(skyViewHref)}
           className="flex-1 flex flex-col items-center gap-1 py-3 text-white/40"
         >
           {isDesktop ? <Monitor className="w-5 h-5" /> : <Camera className="w-5 h-5" />}

@@ -9,6 +9,7 @@ import { VisibilityDot } from '@/components/ui/VisibilityDot';
 
 interface RecommendationCardProps {
   event: CelestialEvent | null;
+  selectedDate: Date;
   loading?: boolean;
 }
 
@@ -27,13 +28,36 @@ const BODY_EMOJIS: Record<string, string> = {
   M13: '✦',
 };
 
+function formatDateParam(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function formatDuration(mins?: number): string {
   if (!mins) return '';
   if (mins < 60) return `${mins} min`;
   return `${Math.floor(mins / 60)}h ${mins % 60}m`;
 }
 
-export function RecommendationCard({ event, loading }: RecommendationCardProps) {
+function startOfDay(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function getRecommendationLabel(selectedDate: Date, isVisibleNow: boolean): string {
+  if (isVisibleNow) return 'Visible Now';
+
+  const today = startOfDay(new Date());
+  const targetDay = startOfDay(selectedDate);
+  const dayOffset = Math.round((targetDay.getTime() - today.getTime()) / 86400000);
+
+  if (dayOffset === 0) return 'Best Tonight';
+  if (dayOffset === 1) return 'Best Tomorrow';
+  return `Best ${selectedDate.toLocaleDateString([], { weekday: 'short' })}`;
+}
+
+export function RecommendationCard({ event, selectedDate, loading }: RecommendationCardProps) {
   const router = useRouter();
   const [isDesktop, setIsDesktop] = useState(false);
 
@@ -57,23 +81,36 @@ export function RecommendationCard({ event, loading }: RecommendationCardProps) 
   }
 
   if (!event) {
+    const emptyTitle = startOfDay(selectedDate).getTime() === startOfDay(new Date()).getTime()
+      ? 'No visible objects in your window tonight'
+      : `No visible objects in your window ${selectedDate.toLocaleDateString([], { weekday: 'long' }).toLowerCase()}`;
+    const emptyHint = startOfDay(selectedDate).getTime() === startOfDay(new Date()).getTime()
+      ? 'Try recalibrating or check back after sunset'
+      : 'Try another night or recalibrate your sky window';
     return (
       <GlassCard className="p-5 text-center space-y-2">
         <Star className="w-8 h-8 text-white/30 mx-auto" />
-        <p className="text-white/50 text-sm">No visible objects in your window tonight</p>
-        <p className="text-white/30 text-xs">Try recalibrating or check back after sunset</p>
+        <p className="text-white/50 text-sm">{emptyTitle}</p>
+        <p className="text-white/30 text-xs">{emptyHint}</p>
       </GlassCard>
     );
   }
 
   const { body, time, visibilityScore, durationInWindow } = event;
   const timeStr = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  const dateParam = formatDateParam(time);
+  const targetBodyParam = encodeURIComponent(body.name);
+  const viewHref = isDesktop
+    ? `/window-view?body=${targetBodyParam}&date=${dateParam}`
+    : `/sky?body=${targetBodyParam}&date=${dateParam}`;
   const now = new Date();
+  const isSelectedDateToday = startOfDay(selectedDate).getTime() === startOfDay(now).getTime();
   const visibleUntil =
     durationInWindow && event.type === 'visible'
       ? new Date(time.getTime() + durationInWindow * 60000)
       : null;
   const isVisibleNow = event.type === 'visible' && time <= now && (!!visibleUntil ? now < visibleUntil : true);
+  const shouldShowViewButton = isDesktop || isSelectedDateToday;
 
   return (
     <GlassCard
@@ -87,7 +124,7 @@ export function RecommendationCard({ event, loading }: RecommendationCardProps) 
         <div className="flex items-start justify-between">
           <div>
             <p className="text-white/50 text-xs uppercase tracking-widest mb-1">
-              {isVisibleNow ? 'Visible Now' : 'Best Tonight'}
+              {getRecommendationLabel(selectedDate, isVisibleNow)}
             </p>
             <div className="flex items-center gap-3">
               <span className="text-4xl">{BODY_EMOJIS[body.name] ?? '⭐'}</span>
@@ -118,13 +155,15 @@ export function RecommendationCard({ event, loading }: RecommendationCardProps) 
           )}
         </div>
 
-        <button
-          onClick={() => router.push(isDesktop ? `/window-view?body=${body.name}` : `/sky?body=${body.name}`)}
-          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gold-400/20 border border-gold-400/30 text-gold-400 font-medium text-sm active:scale-95 transition-transform"
-        >
-          {isDesktop ? <Monitor className="w-4 h-4" /> : <Camera className="w-4 h-4" />}
-          {isDesktop ? 'View in Window' : 'View in AR Mode'}
-        </button>
+        {shouldShowViewButton && (
+          <button
+            onClick={() => router.push(viewHref)}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gold-400/20 border border-gold-400/30 text-gold-400 font-medium text-sm active:scale-95 transition-transform"
+          >
+            {isDesktop ? <Monitor className="w-4 h-4" /> : <Camera className="w-4 h-4" />}
+            {isDesktop ? 'View in Window' : 'View in AR Mode'}
+          </button>
+        )}
       </div>
     </GlassCard>
   );
